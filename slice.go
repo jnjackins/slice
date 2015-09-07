@@ -1,6 +1,6 @@
 // TODO: adjust vertices so minZ is at 0.0
 
-package slice
+package slice // import "sigint.ca/slice"
 
 import (
 	"bufio"
