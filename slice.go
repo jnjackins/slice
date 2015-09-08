@@ -21,22 +21,28 @@ func dprintf(format string, args ...interface{}) {
 	}
 }
 
-// Slice coordinates parallel slicing (1 goroutine per layer)
+// Slice divides parsed STL data into layers and compiles G-code
+// for each layer. The resulting G-code is written to w if it is not nil.
+// After running slice, the resulting layers can be accessed (and compiled
+// individually into G-code) by accessing the STL's Layers variable.
 func (s *STL) Slice(w io.Writer, cfg Config) error {
 	var wg sync.WaitGroup
 	nLayers := int((s.maxZ-s.minZ)/cfg.LayerHeight) + 1
 	dprintf("sliced %d layers", nLayers)
-	s.layers = make([]*Layer, nLayers)
-	for i := range s.layers {
+	s.Layers = make([]*Layer, nLayers)
+	for i := range s.Layers {
 		wg.Add(1)
 		//TODO: go func
 		func(i int, z float64) {
-			s.layers[i] = s.mkLayer(z)
+			s.Layers[i] = s.mkLayer(z)
 			wg.Done()
 		}(i, float64(i)*cfg.LayerHeight)
 	}
 	wg.Wait()
-	for _, l := range s.layers {
+	if w == nil {
+		return nil
+	}
+	for _, l := range s.Layers {
 		_, err := w.Write(l.Gcode())
 		if err != nil {
 			return err

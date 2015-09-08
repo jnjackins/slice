@@ -3,7 +3,7 @@ package slice
 import "fmt"
 
 type Layer struct {
-	facets   []*Facet
+	facets   []*facet
 	segments []segment
 }
 
@@ -11,7 +11,7 @@ type Layer struct {
 //TODO: less brute force
 //TODO: sort by lowZ and stop when lowZ > z
 func (s *STL) mkLayer(z float64) *Layer {
-	facets := make([]*Facet, 0)
+	facets := make([]*facet, 0)
 	for _, f := range s.facets {
 		if f.lowZ <= z && f.highZ >= z {
 			facets = append(facets, f)
@@ -36,7 +36,7 @@ func (s *STL) mkLayer(z float64) *Layer {
 }
 
 type segment struct {
-	end1, end2 Vertex
+	end1, end2 vertex
 }
 
 func (s segment) String() string {
