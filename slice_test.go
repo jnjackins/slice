@@ -14,5 +14,13 @@ func TestSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stl.Slice(os.Stdout)
+
+	var cfg = Config{
+		LayerHeight: 0.2,
+	}
+
+	err = stl.Slice(os.Stdout, cfg)
+	if err != nil {
+		t.Error(err)
+	}
 }
