@@ -43,11 +43,13 @@ func sliceFacet(f *facet, z float64) segment {
 	// the slice plane
 	if i == 0 {
 		//TODO
+		dprintf("warning: no intersections at z=%f", z)
 		return segment{}
 	} else if i != 2 {
 		log.Printf("warning: found %d intersections when finding segment at z=%f", i, z)
 		return segment{}
 	}
 
+	dprintf("sliced segment: {%v - %v}", ends[0], ends[1])
 	return segment{ends[0], ends[1]}
 }

@@ -11,7 +11,7 @@ import (
 	"sync"
 )
 
-const debug = false
+const debug = true
 
 type Config struct {
 	LayerHeight float64

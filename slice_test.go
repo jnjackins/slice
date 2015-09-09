@@ -6,7 +6,7 @@ import (
 )
 
 func TestSlice(t *testing.T) {
-	f, err := os.Open("./testdata/cube40_binary.stl")
+	f, err := os.Open("./testdata/pikachu.stl")
 	if err != nil {
 		t.Fatal(err)
 	}
