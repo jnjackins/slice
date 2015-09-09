@@ -3,14 +3,22 @@ package slice
 import "fmt"
 
 type Layer struct {
-	facets   []*facet
-	segments []segment
+	stl        *STL
+	facets     []*facet
+	perimeters []*segment
+	infill     []*segment
 }
 
-//TODO: linked list?
-//TODO: less brute force
-//TODO: sort by lowZ and stop when lowZ > z
-func (s *STL) mkLayer(z float64) *Layer {
+type segment struct {
+	end1, end2 vertex
+}
+
+func (s *segment) String() string {
+	return fmt.Sprintf("%v-%v", s.end1, s.end2)
+}
+
+func (s *STL) sliceLayer(z float64) *Layer {
+	// find the facets which interect this layer
 	facets := make([]*facet, 0)
 	for _, f := range s.facets {
 		if f.lowZ <= z && f.highZ >= z {
@@ -18,27 +26,24 @@ func (s *STL) mkLayer(z float64) *Layer {
 		}
 	}
 
-	segments := make([]segment, 0, len(facets))
+	// slice each facet to find the perimeters
+	segments := make([]*segment, 0, len(facets))
 	zs := segment{}
 	for _, f := range facets {
 		s := sliceFacet(f, z)
 		if s != zs {
-			segments = append(segments, s)
+			segments = append(segments, &s)
 		}
 	}
-	dprintf("layer z=%0.3f: %d facets / %d segments", z, len(facets), len(segments))
+	dprintf("layer z=%0.3f: %d facets / %d perimeter segments", z, len(facets), len(segments))
 
 	l := &Layer{
-		facets:   facets,
-		segments: segments,
+		stl:        s,
+		facets:     facets,
+		perimeters: segments,
 	}
+
+	l.genInfill()
+
 	return l
-}
-
-type segment struct {
-	end1, end2 vertex
-}
-
-func (s segment) String() string {
-	return fmt.Sprintf("%v-%v", s.end1, s.end2)
 }

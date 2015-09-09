@@ -16,7 +16,7 @@ func TestSlice(t *testing.T) {
 	}
 
 	var cfg = Config{
-		LayerHeight: 0.2,
+		LayerHeight: 1.0,
 	}
 
 	err = stl.Slice(os.Stdout, cfg)

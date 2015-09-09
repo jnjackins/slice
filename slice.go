@@ -1,3 +1,5 @@
+// TODO: split 1 layer into sublayers, so that they can have different infills etc.
+
 // Package slice provides types and functions for compiling STL format 3D models
 // into G-code to be used for 3D printing
 package slice // import "sigint.ca/slice"
@@ -27,14 +29,14 @@ func dprintf(format string, args ...interface{}) {
 // individually into G-code) by accessing the STL's Layers variable.
 func (s *STL) Slice(w io.Writer, cfg Config) error {
 	var wg sync.WaitGroup
-	nLayers := int((s.maxZ-s.minZ)/cfg.LayerHeight) + 1
+	nLayers := int((s.max.z-s.min.z)/cfg.LayerHeight) + 1
 	dprintf("sliced %d layers", nLayers)
 	s.Layers = make([]*Layer, nLayers)
 	for i := range s.Layers {
 		wg.Add(1)
 		//TODO: go func
 		func(i int, z float64) {
-			s.Layers[i] = s.mkLayer(z)
+			s.Layers[i] = s.sliceLayer(z)
 			wg.Done()
 		}(i, float64(i)*cfg.LayerHeight)
 	}

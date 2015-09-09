@@ -11,9 +11,9 @@ import (
 )
 
 type STL struct {
-	Layers     []*Layer
-	facets     []*facet
-	minZ, maxZ float64
+	Layers   []*Layer
+	facets   []*facet
+	min, max vertex
 }
 
 type facet struct {
@@ -54,7 +54,9 @@ func Parse(f *os.File) (*STL, error) {
 		return nil, fmt.Errorf("error decoding STL: %v", err)
 	}
 
-	var maxZ, minZ float64 = 0, math.MaxFloat64
+	small := -1 * math.MaxFloat64
+	big := math.MaxFloat64
+	min, max := vertex{big, big, big}, vertex{small, small, small}
 	facets := make([]*facet, nfacets)
 	for i := range facets {
 		normal, err := getVertex(f)
@@ -68,11 +70,24 @@ func Parse(f *os.File) (*STL, error) {
 				return nil, fmt.Errorf("error decoding STL: %v", err)
 			}
 			vertices[vi] = v
-			if v.z < minZ {
-				minZ = v.z
+
+			if v.x < min.x {
+				min.x = v.x
 			}
-			if v.z > maxZ {
-				maxZ = v.z
+			if v.x > max.x {
+				max.x = v.x
+			}
+			if v.y < min.y {
+				min.y = v.y
+			}
+			if v.y > max.y {
+				max.y = v.y
+			}
+			if v.z < min.z {
+				min.z = v.z
+			}
+			if v.z > max.z {
+				max.z = v.z
 			}
 		}
 		facets[i] = &facet{
@@ -88,8 +103,8 @@ func Parse(f *os.File) (*STL, error) {
 
 	s := STL{
 		facets: facets,
-		minZ:   minZ,
-		maxZ:   maxZ,
+		min:    min,
+		max:    max,
 	}
 	return &s, nil
 }
