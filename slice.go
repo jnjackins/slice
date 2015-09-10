@@ -1,7 +1,7 @@
 // TODO: split 1 layer into sublayers, so that they can have different infills etc.
 
-// Package slice provides types and functions for compiling STL format 3D models
-// into G-code to be used for 3D printing
+// Package slice provides types and functions for slicing and compiling STL format 3D models
+// into G-code to be used for 3D printing.
 package slice // import "sigint.ca/slice"
 
 import (
