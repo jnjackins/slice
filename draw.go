@@ -8,8 +8,8 @@ import (
 const drawfactor = 20
 
 func (l *Layer) Draw() *image.RGBA {
-	min, max := l.stl.min, l.stl.max
-	bounds := image.Rect(round(min.x*drawfactor), round(min.y*drawfactor), round(max.x*drawfactor)+1, round(max.y*drawfactor)+1)
+	min, max := l.stl.Min, l.stl.Max
+	bounds := image.Rect(round(min.X*drawfactor), round(min.Y*drawfactor), round(max.X*drawfactor)+1, round(max.Y*drawfactor)+1)
 	img := image.NewRGBA(bounds)
 	draw.Draw(img, img.Bounds(), image.White, image.ZP, draw.Src)
 	for _, s := range l.perimeters {
@@ -22,7 +22,7 @@ func (l *Layer) Draw() *image.RGBA {
 }
 
 func drawLine(img *image.RGBA, seg *segment) {
-	x0, y0, x1, y1 := seg.end1.x*drawfactor, seg.end1.y*drawfactor, seg.end2.x*drawfactor, seg.end2.y*drawfactor
+	x0, y0, x1, y1 := seg.end1.X*drawfactor, seg.end1.Y*drawfactor, seg.end2.X*drawfactor, seg.end2.Y*drawfactor
 	if x0 > x1 {
 		x0, x1 = x1, x0
 		y0, y1 = y1, y0
@@ -49,8 +49,8 @@ func drawLine(img *image.RGBA, seg *segment) {
 }
 
 func drawLineVert(img *image.RGBA, seg *segment) {
-	x := round(seg.end1.x * drawfactor)
-	y0, y1 := round(seg.end1.y*drawfactor), round(seg.end2.y*drawfactor)
+	x := round(seg.end1.X * drawfactor)
+	y0, y1 := round(seg.end1.Y*drawfactor), round(seg.end2.Y*drawfactor)
 	if y0 > y1 {
 		y0, y1 = y1, y0
 	}

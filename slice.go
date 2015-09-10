@@ -11,7 +11,7 @@ import (
 	"sync"
 )
 
-const debug = true
+const debug = false
 
 type Config struct {
 	LayerHeight float64
@@ -29,16 +29,17 @@ func dprintf(format string, args ...interface{}) {
 // individually into G-code) by accessing the STL's Layers variable.
 func (s *STL) Slice(w io.Writer, cfg Config) error {
 	var wg sync.WaitGroup
-	nLayers := int((s.max.z-s.min.z)/cfg.LayerHeight) + 1
+	nLayers := int((s.Max.Z-s.Min.Z)/cfg.LayerHeight) + 1
 	dprintf("sliced %d layers", nLayers)
 	s.Layers = make([]*Layer, nLayers)
+	h := cfg.LayerHeight
 	for i := range s.Layers {
 		wg.Add(1)
 		//TODO: go func
 		func(i int, z float64) {
 			s.Layers[i] = s.sliceLayer(z)
 			wg.Done()
-		}(i, float64(i)*cfg.LayerHeight)
+		}(i, 0.001+float64(i)*h)
 	}
 	wg.Wait()
 	if w == nil {

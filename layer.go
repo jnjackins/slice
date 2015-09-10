@@ -10,7 +10,7 @@ type Layer struct {
 }
 
 type segment struct {
-	end1, end2 vertex
+	end1, end2 Vertex
 }
 
 func (s *segment) String() string {
