@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"image/color"
 	"image/draw"
 	"log"
 	"os"
@@ -14,6 +15,12 @@ import (
 	"golang.org/x/mobile/event/size"
 
 	"sigint.ca/slice"
+)
+
+var (
+	imgs  []*image.RGBA
+	layer int
+	mask  *image.Uniform
 )
 
 func main() {
@@ -38,11 +45,29 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var layerImages = make([]*image.RGBA, len(stl.Layers))
-	for i := range stl.Layers {
-		layerImages[i] = stl.Layers[i].Draw()
+	// pre-draw all the layers
+
+	imgs = make([]*image.RGBA, len(stl.Layers))
+	mask = image.NewUniform(color.Alpha{0x40})
+	first := stl.Layers[0].Image()
+	r := first.Bounds()
+
+	// draw the first layer onto a plain white background
+	imgs[0] = image.NewRGBA(r)
+	draw.Draw(imgs[0], r, image.White, r.Min, draw.Src)
+	draw.Draw(imgs[0], r, first, r.Min, draw.Over)
+	for i := 1; i < len(stl.Layers); i++ {
+		// draw a semi-transparent version of the previous layer
+		tmp := image.NewRGBA(r)
+		draw.Draw(tmp, r, imgs[i-1], r.Min, draw.Src)
+		draw.Draw(tmp, r, mask, r.Min, draw.Over)
+
+		// draw the transparent layer on white, and then draw the new layer on that.
+		imgs[i] = image.NewRGBA(r)
+		draw.Draw(imgs[i], r, image.White, r.Min, draw.Src)
+		draw.Draw(imgs[i], r, tmp, r.Min, draw.Over)
+		draw.Draw(imgs[i], r, stl.Layers[i].Image(), r.Min, draw.Over)
 	}
-	layer := 0
 
 	driver.Main(func(s screen.Screen) {
 		w, err := s.NewWindow(nil)
@@ -69,7 +94,7 @@ func main() {
 
 			case mouse.Event:
 				if e.Button == mouse.ButtonLeft {
-					if e.Y > lastClick.Y && layer < len(layerImages)-1 {
+					if e.Y > lastClick.Y && layer < len(imgs)-1 {
 						layer++
 					} else if e.Y < lastClick.Y && layer > 0 {
 						layer--
@@ -78,8 +103,7 @@ func main() {
 					}
 					lastClick = e
 
-					src, dst := layerImages[layer], b.RGBA()
-					draw.Draw(dst, dst.Bounds(), src, src.Bounds().Min, draw.Src)
+					draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
 				}
 
 			case key.Event:
@@ -104,8 +128,7 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				src, dst := layerImages[layer], b.RGBA()
-				draw.Draw(dst, dst.Bounds(), src, src.Bounds().Min, draw.Src)
+				draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
 
 			case error:
 				log.Printf("error: %v", e)

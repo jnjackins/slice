@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestDraw(t *testing.T) {
+func TestImage(t *testing.T) {
 	f, err := os.Open("./testdata/pikachu.stl")
 	if err != nil {
 		t.Fatal(err)
@@ -28,7 +28,7 @@ func TestDraw(t *testing.T) {
 	}
 
 	for i := range stl.Layers {
-		img := stl.Layers[i].Draw()
+		img := stl.Layers[i].Image()
 		f, err = os.Create(fmt.Sprintf("./testdata/out%d.png", i))
 		if err != nil {
 			t.Fatal(err)
