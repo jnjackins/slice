@@ -3,6 +3,8 @@ package slice
 import (
 	"image"
 	"image/draw"
+
+	"sigint.ca/graphics/primitive"
 )
 
 const drawfactor = 20
@@ -22,41 +24,9 @@ func (l *Layer) Draw() *image.RGBA {
 }
 
 func drawLine(img *image.RGBA, seg *segment) {
-	x0, y0, x1, y1 := seg.end1.X*drawfactor, seg.end1.Y*drawfactor, seg.end2.X*drawfactor, seg.end2.Y*drawfactor
-	if x0 > x1 {
-		x0, x1 = x1, x0
-		y0, y1 = y1, y0
-	}
-	dx := x1 - x0
-	dy := y1 - y0
-	if abs(dx) < 0.5 {
-		drawLineVert(img, seg)
-		return
-	}
-	var err float64
-	slope := abs(dy / dx)
-	y := round(y0)
-	yDir := sign(y1 - y0)
-	for x := round(x0); x <= round(x1); x++ {
-		img.Set(x, y, image.Black)
-		err = err + slope
-		for err >= 0.5 && !exceeded(float64(y), y1, yDir) {
-			img.Set(x, y, image.Black)
-			y += yDir
-			err -= 1.0
-		}
-	}
-}
-
-func drawLineVert(img *image.RGBA, seg *segment) {
-	x := round(seg.end1.X * drawfactor)
-	y0, y1 := round(seg.end1.Y*drawfactor), round(seg.end2.Y*drawfactor)
-	if y0 > y1 {
-		y0, y1 = y1, y0
-	}
-	for y := y0; y < y1; y++ {
-		img.Set(x, y, image.Black)
-	}
+	p1 := image.Pt(round(seg.end1.X*drawfactor), round(seg.end1.Y*drawfactor))
+	p2 := image.Pt(round(seg.end2.X*drawfactor), round(seg.end2.Y*drawfactor))
+	primitive.Line(img, p1, p2)
 }
 
 func round(v float64) int {
@@ -67,25 +37,4 @@ func round(v float64) int {
 	} else {
 		return 0
 	}
-}
-
-func abs(v float64) float64 {
-	if v < 0 {
-		return -1 * v
-	}
-	return v
-}
-
-func sign(v float64) int {
-	if v < 0 {
-		return -1
-	}
-	return 1
-}
-
-func exceeded(from, to float64, dir int) bool {
-	if dir < 0 {
-		return to > from
-	}
-	return from > to
 }
