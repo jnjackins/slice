@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"image"
 	"image/color"
 	"image/draw"
@@ -26,7 +27,16 @@ var (
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("vis: ")
-	f, err := os.Open("../../testdata/pikachu.stl")
+	flag.Usage = func() {
+		log.Print("Usage: vis file")
+	}
+	flag.Parse()
+	if flag.NArg() != 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	f, err := os.Open(flag.Arg(0))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -113,7 +123,7 @@ func main() {
 
 			case paint.Event:
 				w.Upload(image.Point{}, b, b.Bounds(), w)
-				w.EndPaint(e)
+				w.Publish()
 
 			case screen.UploadedEvent:
 				// No-op.
