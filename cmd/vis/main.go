@@ -58,7 +58,7 @@ func main() {
 	// pre-draw all the layers
 
 	imgs = make([]*image.RGBA, len(stl.Layers))
-	mask = image.NewUniform(color.Alpha{0x40})
+	mask = image.NewUniform(color.Alpha{0x80})
 	first := stl.Layers[0].Image()
 	r := first.Bounds()
 
@@ -98,6 +98,10 @@ func main() {
 		var sz size.Event
 		var lastClick mouse.Event
 
+		redraw := func() {
+			draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
+		}
+
 		for e := range w.Events() {
 			switch e := e.(type) {
 			default:
@@ -106,14 +110,12 @@ func main() {
 				if e.Button == mouse.ButtonLeft {
 					if e.Y > lastClick.Y && layer < len(imgs)-1 {
 						layer++
+						redraw()
 					} else if e.Y < lastClick.Y && layer > 0 {
 						layer--
-					} else {
-						break
+						redraw()
 					}
 					lastClick = e
-
-					draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
 				}
 
 			case key.Event:
@@ -138,7 +140,7 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
+				redraw()
 
 			case error:
 				log.Printf("error: %v", e)
