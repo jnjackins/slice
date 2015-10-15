@@ -8,6 +8,10 @@ import (
 	"image/draw"
 	"log"
 	"os"
+	"runtime/pprof"
+	"time"
+
+	"sigint.ca/slice"
 
 	"golang.org/x/exp/shiny/driver"
 	"golang.org/x/exp/shiny/screen"
@@ -18,8 +22,6 @@ import (
 	"golang.org/x/mobile/event/mouse"
 	"golang.org/x/mobile/event/paint"
 	"golang.org/x/mobile/event/size"
-
-	"sigint.ca/slice"
 )
 
 const maskOpacity = 0xFF
@@ -30,16 +32,39 @@ var (
 	mask  *image.Uniform
 )
 
+var (
+	debug = flag.Bool("d", false, "debug mode")
+	prof  = flag.String("prof", "", "`path` to output CPU profiling information")
+)
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("vis: ")
 	flag.Usage = func() {
-		log.Print("Usage: vis file")
+		log.Print("Usage: vis [options] file")
+		flag.PrintDefaults()
 	}
 	flag.Parse()
 	if flag.NArg() != 1 {
 		flag.Usage()
 		os.Exit(1)
+	}
+
+	if *prof != "" {
+		log.Print("profile mode: will write out CPU profile after 5 seconds")
+		f, err := os.Create(*prof)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = pprof.StartCPUProfile(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		go func() {
+			time.Sleep(5 * time.Second)
+			pprof.StopCPUProfile()
+			log.Print("done writing CPU profile")
+		}()
 	}
 
 	f, err := os.Open(flag.Arg(0))
@@ -52,41 +77,12 @@ func main() {
 	}
 	f.Close()
 
-	var cfg = slice.Config{
-		LayerHeight:   0.4,
-		InfillSpacing: 1.0,
-		InfillAngle:   45.0,
-	}
-
-	err = stl.Slice(nil, cfg)
-	if err != nil {
+	if err := sliceSTL(stl); err != nil {
 		log.Fatal(err)
 	}
+	drawLayers(stl)
 
-	// pre-draw all the layers
-
-	imgs = make([]*image.RGBA, len(stl.Layers))
-	mask = image.NewUniform(color.Alpha{maskOpacity})
-	first := stl.Layers[0].Image()
-	r := first.Bounds()
-
-	// draw the first layer onto a plain white background
-	imgs[0] = image.NewRGBA(r)
-	draw.Draw(imgs[0], r, image.White, r.Min, draw.Src)
-	draw.Draw(imgs[0], r, first, r.Min, draw.Over)
-	for i := 1; i < len(stl.Layers); i++ {
-		// draw a semi-transparent version of the previous layer
-		tmp := image.NewRGBA(r)
-		draw.Draw(tmp, r, imgs[i-1], r.Min, draw.Src)
-		draw.Draw(tmp, r, mask, r.Min, draw.Over)
-
-		// draw the transparent layer on white, and then draw the new layer on that.
-		imgs[i] = image.NewRGBA(r)
-		draw.Draw(imgs[i], r, image.White, r.Min, draw.Src)
-		draw.Draw(imgs[i], r, tmp, r.Min, draw.Over)
-		draw.Draw(imgs[i], r, stl.Layers[i].Image(), r.Min, draw.Over)
-	}
-
+	log.Print("Launching UI...")
 	driver.Main(func(s screen.Screen) {
 		w, err := s.NewWindow(nil)
 		if err != nil {
@@ -108,10 +104,7 @@ func main() {
 
 		redraw := func() {
 			draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
-
-			// draw layer number in top-left corner
 			drawLayerNumber(b.RGBA(), layer)
-
 		}
 
 		for e := range w.Events() {
@@ -131,7 +124,9 @@ func main() {
 				}
 
 			case key.Event:
+				log.Printf("key: %v", e)
 				if e.Code == key.CodeEscape {
+					log.Print("quitting")
 					return
 				}
 
@@ -159,6 +154,49 @@ func main() {
 			}
 		}
 	})
+}
+
+func sliceSTL(stl *slice.STL) error {
+	log.Print("slicing...")
+	t := time.Now()
+
+	var cfg = slice.Config{
+		DebugMode:     *debug,
+		LayerHeight:   0.4,
+		InfillSpacing: 1.0,
+		InfillAngle:   45.0,
+	}
+
+	log.Printf("slicing took %v", time.Now().Sub(t))
+	return stl.Slice(nil, cfg)
+}
+
+func drawLayers(stl *slice.STL) {
+	log.Print("drawing layers...")
+	t := time.Now()
+
+	imgs = make([]*image.RGBA, len(stl.Layers))
+	mask = image.NewUniform(color.Alpha{maskOpacity})
+	first := stl.Layers[0].Image()
+	r := first.Bounds()
+
+	// draw the first layer onto a plain white background
+	imgs[0] = image.NewRGBA(r)
+	draw.Draw(imgs[0], r, image.White, r.Min, draw.Src)
+	draw.Draw(imgs[0], r, first, r.Min, draw.Over)
+	for i := 1; i < len(stl.Layers); i++ {
+		// draw a semi-transparent version of the previous layer
+		tmp := image.NewRGBA(r)
+		draw.Draw(tmp, r, imgs[i-1], r.Min, draw.Src)
+		draw.Draw(tmp, r, mask, r.Min, draw.Over)
+
+		// draw the transparent layer on white, and then draw the new layer on that.
+		imgs[i] = image.NewRGBA(r)
+		draw.Draw(imgs[i], r, image.White, r.Min, draw.Src)
+		draw.Draw(imgs[i], r, tmp, r.Min, draw.Over)
+		draw.Draw(imgs[i], r, stl.Layers[i].Image(), r.Min, draw.Over)
+	}
+	log.Printf("drawing took %v", time.Now().Sub(t))
 }
 
 func drawLayerNumber(dst draw.Image, n int) {

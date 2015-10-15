@@ -11,10 +11,12 @@ import (
 	"sync"
 )
 
-const debug = true
+var debug bool
 
 // A Config variable specifies a slicing configuration.
 type Config struct {
+	DebugMode bool
+
 	LayerHeight float64
 
 	InfillSpacing float64
@@ -32,6 +34,8 @@ func dprintf(format string, args ...interface{}) {
 // After running slice, the resulting layers can be accessed (and compiled
 // individually into G-code) by accessing the STL's Layers variable.
 func (s *STL) Slice(w io.Writer, cfg Config) error {
+	debug = cfg.DebugMode
+
 	var wg sync.WaitGroup
 	nLayers := int((s.Max.Z-s.Min.Z)/cfg.LayerHeight) + 1
 	dprintf("sliced %d layers", nLayers)
