@@ -12,14 +12,14 @@ import (
 
 type STL struct {
 	Layers   []*Layer
-	Min, Max Vertex
+	Min, Max Vertex3
 
 	facets []*facet
 }
 
 type facet struct {
-	normal      Vertex //TODO: ignore?
-	vertices    [3]Vertex
+	normal      Vertex3 //TODO: ignore?
+	vertices    [3]Vertex3
 	lowZ, highZ float64
 }
 
@@ -27,11 +27,11 @@ func (f *facet) String() string {
 	return fmt.Sprint(f.vertices)
 }
 
-type Vertex struct {
+type Vertex3 struct {
 	X, Y, Z float64
 }
 
-func (v Vertex) String() string {
+func (v Vertex3) String() string {
 	return fmt.Sprintf("(%0.3f,%0.3f,%0.3f)", v.X, v.Y, v.Z)
 }
 
@@ -57,14 +57,14 @@ func Parse(f *os.File) (*STL, error) {
 
 	small := -1 * math.MaxFloat64
 	big := math.MaxFloat64
-	min, max := Vertex{big, big, big}, Vertex{small, small, small}
+	min, max := Vertex3{big, big, big}, Vertex3{small, small, small}
 	facets := make([]*facet, nfacets)
 	for i := range facets {
 		normal, err := getVertex(f)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding STL: %v", err)
 		}
-		var vertices [3]Vertex
+		var vertices [3]Vertex3
 		for vi := range vertices {
 			v, err := getVertex(f)
 			if err != nil {
@@ -110,21 +110,21 @@ func Parse(f *os.File) (*STL, error) {
 	return &s, nil
 }
 
-func getVertex(r io.Reader) (Vertex, error) {
+func getVertex(r io.Reader) (Vertex3, error) {
 	var x, z, y float32
 	err := binary.Read(r, binary.LittleEndian, &x)
 	if err != nil {
-		return Vertex{}, err
+		return Vertex3{}, err
 	}
 	err = binary.Read(r, binary.LittleEndian, &y)
 	if err != nil {
-		return Vertex{}, err
+		return Vertex3{}, err
 	}
 	err = binary.Read(r, binary.LittleEndian, &z)
 	if err != nil {
-		return Vertex{}, err
+		return Vertex3{}, err
 	}
 
-	v := Vertex{X: float64(x), Y: float64(y), Z: float64(z)}
+	v := Vertex3{X: float64(x), Y: float64(y), Z: float64(z)}
 	return v, nil
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -10,6 +11,9 @@ import (
 
 	"golang.org/x/exp/shiny/driver"
 	"golang.org/x/exp/shiny/screen"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/math/fixed"
 	"golang.org/x/mobile/event/key"
 	"golang.org/x/mobile/event/mouse"
 	"golang.org/x/mobile/event/paint"
@@ -17,6 +21,8 @@ import (
 
 	"sigint.ca/slice"
 )
+
+const maskOpacity = 0xFF
 
 var (
 	imgs  []*image.RGBA
@@ -47,7 +53,9 @@ func main() {
 	f.Close()
 
 	var cfg = slice.Config{
-		LayerHeight: 0.4,
+		LayerHeight:   0.4,
+		InfillSpacing: 1.0,
+		InfillAngle:   45.0,
 	}
 
 	err = stl.Slice(nil, cfg)
@@ -58,7 +66,7 @@ func main() {
 	// pre-draw all the layers
 
 	imgs = make([]*image.RGBA, len(stl.Layers))
-	mask = image.NewUniform(color.Alpha{0x80})
+	mask = image.NewUniform(color.Alpha{maskOpacity})
 	first := stl.Layers[0].Image()
 	r := first.Bounds()
 
@@ -100,6 +108,10 @@ func main() {
 
 		redraw := func() {
 			draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
+
+			// draw layer number in top-left corner
+			drawLayerNumber(b.RGBA(), layer)
+
 		}
 
 		for e := range w.Events() {
@@ -147,4 +159,14 @@ func main() {
 			}
 		}
 	})
+}
+
+func drawLayerNumber(dst draw.Image, n int) {
+	d := font.Drawer{
+		Dst:  dst,
+		Src:  image.Black,
+		Face: basicfont.Face7x13,
+		Dot:  fixed.P(2, 13),
+	}
+	d.DrawString(fmt.Sprintf("Layer %03d", n))
 }

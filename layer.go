@@ -3,47 +3,31 @@ package slice
 import "fmt"
 
 type Layer struct {
+	n          int // layer index
+	z          float64
 	stl        *STL
 	facets     []*facet
 	perimeters []*segment
 	infill     []*segment
 }
 
+// used by genInfill
+const (
+	markWhite = iota
+	markGrey
+)
+
 type segment struct {
-	end1, end2 Vertex
+	from, to        Vertex2 // ordered so that gcode movements are from "from" to "to"
+	first, second   Vertex2 // ordered relative to some sorting line (changes throughout lifetime)
+	dfirst, dsecond float64 // distance of first and second from sorting line
+	mark            int     // indicates whether the segment has yet to be visited during infill
+}
+
+type Vertex2 struct {
+	X, Y float64
 }
 
 func (s *segment) String() string {
-	return fmt.Sprintf("%v-%v", s.end1, s.end2)
-}
-
-func (s *STL) sliceLayer(z float64) *Layer {
-	// find the facets which interect this layer
-	facets := make([]*facet, 0)
-	for _, f := range s.facets {
-		if f.lowZ <= z && f.highZ >= z {
-			facets = append(facets, f)
-		}
-	}
-
-	// slice each facet to find the perimeters
-	segments := make([]*segment, 0, len(facets))
-	zs := segment{}
-	for _, f := range facets {
-		s := sliceFacet(f, z)
-		if s != zs {
-			segments = append(segments, &s)
-		}
-	}
-	dprintf("layer z=%0.3f: %d facets / %d perimeter segments", z, len(facets), len(segments))
-
-	l := &Layer{
-		stl:        s,
-		facets:     facets,
-		perimeters: segments,
-	}
-
-	l.genInfill()
-
-	return l
+	return fmt.Sprintf("%v-%v", s.from, s.to)
 }

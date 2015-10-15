@@ -11,10 +11,14 @@ import (
 	"sync"
 )
 
-const debug = false
+const debug = true
 
+// A Config variable specifies a slicing configuration.
 type Config struct {
 	LayerHeight float64
+
+	InfillSpacing float64
+	InfillAngle   float64 // in degrees
 }
 
 func dprintf(format string, args ...interface{}) {
@@ -35,9 +39,9 @@ func (s *STL) Slice(w io.Writer, cfg Config) error {
 	h := cfg.LayerHeight
 	for i := range s.Layers {
 		wg.Add(1)
-		//TODO: go func
+		//TODO: parallelize?
 		func(i int, z float64) {
-			s.Layers[i] = s.sliceLayer(z)
+			s.Layers[i] = s.sliceLayer(i, z, cfg)
 			wg.Done()
 		}(i, 0.001+float64(i)*h)
 	}
