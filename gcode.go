@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// Gcode compiles the layer into gcode.
 func (l *Layer) Gcode() []byte {
 	if len(l.perimeters) == 0 {
 		return []byte{}

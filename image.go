@@ -15,12 +15,15 @@ var (
 	infillColor    = color.RGBA{R: 0xFF, G: 0, B: 0, A: 0xFF}
 )
 
+// Bounds returns an image.Rectangle for use with Draw.
 func (l *Layer) Bounds() image.Rectangle {
 	x1, y1 := int(l.stl.Min.X), int(l.stl.Min.Y)
 	x2, y2 := int(l.stl.Max.X+0.5), int(l.stl.Max.Y+0.5)
 	return image.Rect(x1*drawfactor, y1*drawfactor, x2*drawfactor, y2*drawfactor)
 }
 
+// Draw draws an image representation of the layer onto dst. Use Bounds to find
+// the minimum size that dst should be to contain the entire image.
 func (l *Layer) Draw(dst draw.Image) {
 	for _, s := range l.perimeters {
 		drawLine(dst, perimeterColor, s)

@@ -29,10 +29,10 @@ func dprintf(format string, args ...interface{}) {
 	}
 }
 
-// Slice divides parsed STL data into layers and compiles G-code
-// for each layer. The resulting G-code is written to w if it is not nil.
-// After running slice, the resulting layers can be accessed (and compiled
-// individually into G-code) by accessing the STL's Layers variable.
+// Slice divides parsed STL data into layers and optionally compiles G-code
+// for each layer. The G-code is written to w, if w is not nil.
+// After running slice, the resulting layers can be accessed as the STL's
+// Layers variable.
 func (s *STL) Slice(w io.Writer, cfg Config) error {
 	debug = cfg.DebugMode
 
