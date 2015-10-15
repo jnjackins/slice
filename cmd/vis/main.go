@@ -166,20 +166,22 @@ func sliceSTL(stl *slice.STL) error {
 
 func drawLayers(stl *slice.STL) []*image.RGBA {
 	log.Print("drawing layers...")
+	if len(stl.Layers) == 0 {
+		log.Fatal("no layers to draw")
+	}
 	t := time.Now()
 
 	imgs := make([]*image.RGBA, len(stl.Layers))
+	r := stl.Layers[0].Bounds()
 	wg := sync.WaitGroup{}
-	for i := 0; i < len(stl.Layers); i++ {
-		go func(i int) {
-			wg.Add(1)
-			src := stl.Layers[i].Image()
-			r := src.Bounds()
+	for i, layer := range stl.Layers {
+		wg.Add(1)
+		go func(i int, layer *slice.Layer) {
 			imgs[i] = image.NewRGBA(r)
 			draw.Draw(imgs[i], r, image.White, r.Min, draw.Src)
-			draw.Draw(imgs[i], r, src, r.Min, draw.Over)
+			layer.Draw(imgs[i])
 			wg.Done()
-		}(i)
+		}(i, layer)
 	}
 	wg.Wait()
 

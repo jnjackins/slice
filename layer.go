@@ -11,12 +11,6 @@ type Layer struct {
 	infill     []*segment
 }
 
-// used by genInfill
-const (
-	markWhite = iota
-	markGrey
-)
-
 type segment struct {
 	from, to        Vertex2 // ordered so that gcode movements are from "from" to "to"
 	first, second   Vertex2 // ordered relative to some sorting line (changes throughout lifetime)

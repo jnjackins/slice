@@ -1,10 +1,5 @@
 package slice
 
-import (
-	"math"
-	"sort"
-)
-
 // Infill algorithm (for one layer):
 //
 // - for each segment s, set s.first and s.second to some permutation of s.from and s.to in relation to a line sortLine with angle InfillAngle
@@ -25,6 +20,16 @@ import (
 //     - repeat the turn-advance process until we are back near the starting point and facing the same direction as InfillAngle again
 //
 // Memory requirements: (16 bytes per Vertex2) * (2 Vertex2s per segment) * (4 lists) = 128 bytes per segment
+
+import (
+	"math"
+	"sort"
+)
+
+const (
+	markWhite = iota
+	markGrey
+)
 
 func (l *Layer) genInfill(cfg Config) {
 	dprintf("generating infill for layer %d...", l.n)

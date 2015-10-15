@@ -15,17 +15,19 @@ var (
 	infillColor    = color.RGBA{R: 0xFF, G: 0, B: 0, A: 0xFF}
 )
 
-func (l *Layer) Image() *image.RGBA {
-	min, max := l.stl.Min, l.stl.Max
-	bounds := image.Rect(round(min.X*drawfactor), round(min.Y*drawfactor), round(max.X*drawfactor)+1, round(max.Y*drawfactor)+1)
-	img := image.NewRGBA(bounds)
+func (l *Layer) Bounds() image.Rectangle {
+	x1, y1 := int(l.stl.Min.X), int(l.stl.Min.Y)
+	x2, y2 := int(l.stl.Max.X+0.5), int(l.stl.Max.Y+0.5)
+	return image.Rect(x1*drawfactor, y1*drawfactor, x2*drawfactor, y2*drawfactor)
+}
+
+func (l *Layer) Draw(dst draw.Image) {
 	for _, s := range l.perimeters {
-		drawLine(img, perimeterColor, s)
+		drawLine(dst, perimeterColor, s)
 	}
 	for _, s := range l.infill {
-		drawLine(img, infillColor, s)
+		drawLine(dst, infillColor, s)
 	}
-	return img
 }
 
 func drawLine(dst draw.Image, c color.Color, seg *segment) {
