@@ -31,7 +31,7 @@ func dprintf(format string, args ...interface{}) {
 
 // Slice divides parsed STL data into layers and optionally compiles G-code
 // for each layer. The G-code is written to w, if w is not nil.
-// After running slice, the resulting layers can be accessed as the STL's
+// After Slice returns, the resulting layers can be accessed as the STL's
 // Layers variable.
 func (s *STL) Slice(w io.Writer, cfg Config) error {
 	debug = cfg.DebugMode
@@ -43,8 +43,7 @@ func (s *STL) Slice(w io.Writer, cfg Config) error {
 	h := cfg.LayerHeight
 	for i := range s.Layers {
 		wg.Add(1)
-		//TODO: parallelize?
-		func(i int, z float64) {
+		go func(i int, z float64) {
 			s.Layers[i] = s.sliceLayer(i, z, cfg)
 			wg.Done()
 		}(i, 0.001+float64(i)*h)
