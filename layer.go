@@ -28,6 +28,10 @@ type Vertex2 struct {
 	X, Y float64
 }
 
+func (v Vertex2) String() string {
+	return fmt.Sprintf("(%0.3f,%0.3f)", v.X, v.Y)
+}
+
 func (s *segment) String() string {
 	return fmt.Sprintf("%v-%v", s.from, s.to)
 }
