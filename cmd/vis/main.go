@@ -4,11 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"image"
-	"image/color"
 	"image/draw"
 	"log"
 	"os"
 	"runtime/pprof"
+	"sync"
 	"time"
 
 	"sigint.ca/slice"
@@ -22,14 +22,6 @@ import (
 	"golang.org/x/mobile/event/mouse"
 	"golang.org/x/mobile/event/paint"
 	"golang.org/x/mobile/event/size"
-)
-
-const maskOpacity = 0xFF
-
-var (
-	imgs  []*image.RGBA
-	layer int
-	mask  *image.Uniform
 )
 
 var (
@@ -80,7 +72,7 @@ func main() {
 	if err := sliceSTL(stl); err != nil {
 		log.Fatal(err)
 	}
-	drawLayers(stl)
+	imgs := drawLayers(stl)
 
 	log.Print("Launching UI...")
 	driver.Main(func(s screen.Screen) {
@@ -102,6 +94,7 @@ func main() {
 		var sz size.Event
 		var lastClick mouse.Event
 
+		var layer int
 		redraw := func() {
 			draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
 			drawLayerNumber(b.RGBA(), layer)
@@ -171,32 +164,27 @@ func sliceSTL(stl *slice.STL) error {
 	return stl.Slice(nil, cfg)
 }
 
-func drawLayers(stl *slice.STL) {
+func drawLayers(stl *slice.STL) []*image.RGBA {
 	log.Print("drawing layers...")
 	t := time.Now()
 
-	imgs = make([]*image.RGBA, len(stl.Layers))
-	mask = image.NewUniform(color.Alpha{maskOpacity})
-	first := stl.Layers[0].Image()
-	r := first.Bounds()
-
-	// draw the first layer onto a plain white background
-	imgs[0] = image.NewRGBA(r)
-	draw.Draw(imgs[0], r, image.White, r.Min, draw.Src)
-	draw.Draw(imgs[0], r, first, r.Min, draw.Over)
-	for i := 1; i < len(stl.Layers); i++ {
-		// draw a semi-transparent version of the previous layer
-		tmp := image.NewRGBA(r)
-		draw.Draw(tmp, r, imgs[i-1], r.Min, draw.Src)
-		draw.Draw(tmp, r, mask, r.Min, draw.Over)
-
-		// draw the transparent layer on white, and then draw the new layer on that.
-		imgs[i] = image.NewRGBA(r)
-		draw.Draw(imgs[i], r, image.White, r.Min, draw.Src)
-		draw.Draw(imgs[i], r, tmp, r.Min, draw.Over)
-		draw.Draw(imgs[i], r, stl.Layers[i].Image(), r.Min, draw.Over)
+	imgs := make([]*image.RGBA, len(stl.Layers))
+	wg := sync.WaitGroup{}
+	for i := 0; i < len(stl.Layers); i++ {
+		go func(i int) {
+			wg.Add(1)
+			src := stl.Layers[i].Image()
+			r := src.Bounds()
+			imgs[i] = image.NewRGBA(r)
+			draw.Draw(imgs[i], r, image.White, r.Min, draw.Src)
+			draw.Draw(imgs[i], r, src, r.Min, draw.Over)
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
+
 	log.Printf("drawing took %v", time.Now().Sub(t))
+	return imgs
 }
 
 func drawLayerNumber(dst draw.Image, n int) {
