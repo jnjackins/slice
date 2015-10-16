@@ -18,8 +18,6 @@ package slice
 //     - advance dot to the intersection, move v to dot and rotate v by 90° (or -90°)
 //     - mark the segment grey
 //     - repeat the turn-advance process until we are back near the starting point and facing the same direction as InfillAngle again
-//
-// Memory requirements: (16 bytes per Vertex2) * (2 Vertex2s per segment) * (4 lists) = 128 bytes per segment
 
 import (
 	"math"
@@ -34,6 +32,7 @@ const (
 func (l *Layer) genInfill(cfg Config) {
 	dprintf("generating infill for layer %d...", l.n)
 	l.infill = make([]*segment, 0)
+	l.debug = make([]*segment, 0)
 
 	infillAngle := cfg.InfillAngle * math.Pi / 180.0
 	if l.n%2 == 1 {
@@ -41,16 +40,23 @@ func (l *Layer) genInfill(cfg Config) {
 	}
 
 	l1, l2 := l.sortSegments(infillAngle)
-	_ = l2
+
 	dot := l1[0].first
+	dot = traverse(dot, l1[0], cfg.LineWidth)
+
 	dprintf("dot: %v", dot)
-	cast := newLine(dot, infillAngle)
-	dprintf("cast: %v", cast)
-	x1 := l.stl.Min.X
-	y1 := cast.m*x1 + cast.b
-	x2 := l.stl.Max.X
-	y2 := cast.m*x2 + cast.b
-	l.infill = append(l.infill, &segment{from: Vertex2{x1, y1}, to: Vertex2{x2, y2}})
+	castLine := newLine(dot, infillAngle)
+	dprintf("cast: %v", castLine)
+
+	// find the endpoints of the cast line
+	from := Vertex2{l.stl.Min.X, castLine.m*l.stl.Min.X + castLine.b}
+	to := Vertex2{l.stl.Max.X, castLine.m*l.stl.Max.X + castLine.b}
+	cast := &segment{from: from, to: to}
+
+	l.debug = append(l.debug, cast)
+
+	intersections := l.getIntersections(cast, l1, l2)
+	l.infill = append(l.infill, intersections...)
 }
 
 type byDist struct {
@@ -103,4 +109,52 @@ func (l *Layer) sortSegments(angle float64) ([]*segment, []*segment) {
 	sort.Sort(byDist{l1, 1})
 	sort.Sort(byDist{l2, 2})
 	return l1, l2
+}
+
+func (l *Layer) getIntersections(cast *segment, l1, l2 []*segment) []*segment {
+	i := sort.Search(len(l1), func(i int) bool {
+		return checkSide(cast, l1[i].first) >= 0
+	})
+	matches1 := l1[:i]
+	j := sort.Search(len(l2), func(i int) bool {
+		return checkSide(cast, l2[i].second) >= 0
+	})
+	matches2 := l2[j:]
+
+	matchMap := make(map[*segment]int)
+	intersections := make([]*segment, 0)
+	for _, s := range matches1 {
+		matchMap[s]++
+	}
+	for _, s := range matches2 {
+		if _, ok := matchMap[s]; ok {
+			dprintf("%v intersects with %v", s, cast)
+			intersections = append(intersections, s)
+		}
+	}
+	return intersections
+}
+
+func traverse(dot Vertex2, s *segment, d float64) Vertex2 {
+	n := vector(s.second).sub(vector(s.first)).norm()
+	dprintf("normal of %v: %v", s, n)
+	v := vector(dot).add(n.mul(d))
+	return Vertex2(v)
+}
+
+// checkSide returns -1, +1, or 0 if p is on one side of s, the other, or directly on s.
+func checkSide(s *segment, p Vertex2) int {
+	position := sign((s.to.X-s.from.X)*(p.Y-s.from.Y) - (s.to.Y-s.from.Y)*(p.X-s.from.X))
+	dprintf("position of %v in relation to %v is %d", p, s, position)
+	return position
+}
+
+func sign(v float64) int {
+	if v < 0.0 {
+		return -1
+	}
+	if v > 0.0 {
+		return 1
+	}
+	return 0
 }

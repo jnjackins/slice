@@ -18,6 +18,7 @@ type Config struct {
 	DebugMode bool
 
 	LayerHeight float64
+	LineWidth   float64
 
 	InfillSpacing float64
 	InfillAngle   float64 // in degrees
@@ -38,17 +39,27 @@ func (s *STL) Slice(w io.Writer, cfg Config) error {
 
 	var wg sync.WaitGroup
 	nLayers := int((s.Max.Z-s.Min.Z)/cfg.LayerHeight) + 1
-	dprintf("sliced %d layers", nLayers)
 	s.Layers = make([]*Layer, nLayers)
 	h := cfg.LayerHeight
-	for i := range s.Layers {
-		wg.Add(1)
-		go func(i int, z float64) {
-			s.Layers[i] = s.sliceLayer(i, z, cfg)
-			wg.Done()
-		}(i, 0.001+float64(i)*h)
+
+	// slice in parallel if not in debug mode
+	if debug {
+		for i := range s.Layers {
+			s.Layers[i] = s.sliceLayer(i, 0.001+float64(i)*h, cfg)
+		}
+	} else {
+		for i := range s.Layers {
+			wg.Add(1)
+			go func(i int, z float64) {
+				s.Layers[i] = s.sliceLayer(i, z, cfg)
+				wg.Done()
+			}(i, 0.001+float64(i)*h)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
+
+	dprintf("sliced %d layers", nLayers)
+
 	if w == nil {
 		return nil
 	}

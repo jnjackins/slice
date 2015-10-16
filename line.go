@@ -1,12 +1,19 @@
 package slice
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 type line struct {
 	origin Vertex2 // a point on the line
 	angle  float64 // angle of the line, relative to the line y = origin.Y
 	m      float64 // slope of line (calculated)
 	b      float64 // y intercept (calculated)
+}
+
+func (l line) String() string {
+	return fmt.Sprintf("(y=%.1fx+%.1f", l.m, l.b)
 }
 
 func newLine(origin Vertex2, angle float64) line {

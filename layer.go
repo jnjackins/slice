@@ -9,6 +9,7 @@ type Layer struct {
 	facets     []*facet
 	perimeters []*segment
 	infill     []*segment
+	debug      []*segment // extra lines to draw for debugging purposes
 }
 
 type segment struct {
@@ -23,7 +24,7 @@ type Vertex2 struct {
 }
 
 func (v Vertex2) String() string {
-	return fmt.Sprintf("(%0.3f,%0.3f)", v.X, v.Y)
+	return fmt.Sprintf("(%0.1f,%0.1f)", v.X, v.Y)
 }
 
 func (s *segment) String() string {
