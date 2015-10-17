@@ -2,6 +2,7 @@ package slice
 
 import (
 	"fmt"
+	"log"
 	"math"
 )
 
@@ -16,9 +17,28 @@ func (l line) String() string {
 	return fmt.Sprintf("(y=%.1fx+%.1f", l.m, l.b)
 }
 
-func newLine(origin Vertex2, angle float64) line {
+func lineFromAngle(origin Vertex2, angle float64) line {
 	slope := math.Tan(angle)
 	return line{origin: origin, angle: angle, m: slope, b: origin.Y - slope*origin.X}
+}
+
+func lineFromSegment(s *segment) line {
+	div := s.to.X - s.from.X
+	if div == 0 {
+		log.Printf("lineFromSegment: warning: division by 0")
+	}
+	slope := (s.to.Y - s.from.Y) / div
+	return line{m: slope, b: s.from.Y - slope*s.from.X}
+}
+
+func (l1 line) intersectionPoint(l2 line) Vertex2 {
+	div := l1.m - l2.m
+	if div == 0 {
+		log.Printf("intersectionPoint: warning: division by 0")
+	}
+	x := (l2.b - l1.b) / div
+	y := l2.m*x + l2.b
+	return Vertex2{X: x, Y: y}
 }
 
 func (l line) dist(v Vertex2) float64 {

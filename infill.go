@@ -39,24 +39,65 @@ func (l *Layer) genInfill(cfg Config) {
 		infillAngle += math.Pi / 2.0
 	}
 
-	l1, l2 := l.sortSegments(infillAngle)
+	var origin Vertex2 // infill proceeds away from origin
+	var infillDir int
+	slope := math.Tan(infillAngle)
+	if slope < 0 {
+		origin = Vertex2{l.stl.Min.X, l.stl.Min.Y}
+		infillDir = -1
+	} else if slope > 0 {
+		origin = Vertex2{l.stl.Max.X, l.stl.Min.Y}
+		infillDir = 1
+	} else {
+		infillDir = 0
+	}
 
-	dot := l1[0].first
-	dot = traverse(dot, l1[0], cfg.LineWidth)
+	// sort segments into two lists, by distance of their endpoints from a
+	// sorting line with angle infillAngle. One list for each segment endpoint.
+	l1, l2 := l.sortSegments(infillAngle, origin)
 
-	dprintf("dot: %v", dot)
-	castLine := newLine(dot, infillAngle)
-	dprintf("cast: %v", castLine)
-
-	// find the endpoints of the cast line
+	// Find a starting point. Start from the first end of the least distant
+	// segment (as determined by the sorting), shifted by cfg.LineWidth.
+	// Create a line at that point, with angle infillAngle.
+	// If there are at least 2 segments that intersect with that line,
+	// set dot the intersection point on the line that is closest to one
+	// end of the line (the "top" end). Otherwise, TODO
+	dprintf("looking for starting point")
+	castLine := lineFromAngle(l1[0].first, infillAngle)
 	from := Vertex2{l.stl.Min.X, castLine.m*l.stl.Min.X + castLine.b}
 	to := Vertex2{l.stl.Max.X, castLine.m*l.stl.Max.X + castLine.b}
+	// cast from the top towards the bottom
+	// TODO: don't assume that cast isn't horizontal
+	if to.Y < from.Y {
+		to, from = from, to
+	}
 	cast := &segment{from: from, to: to}
+	shiftAngle := infillAngle + math.Pi/2.0
+	shiftLine := lineFromAngle(origin, shiftAngle)
 
-	l.debug = append(l.debug, cast)
+	// shift is vector representing the direction that we need to shift the
+	// cast line
+	v := vector(shiftLine.intersectionPoint(castLine)).sub(vector(origin))
+	shift := v.norm().mul(cfg.LineWidth)
 
-	intersections := l.getIntersections(cast, l1, l2)
-	l.infill = append(l.infill, intersections...)
+	// shift the cast line inwards by cfg.LineWidth
+	dprintf("shifting by %v (%.1f°)", shift, shiftAngle*180/math.Pi)
+	cast.shiftBy(shift)
+	castLine = lineFromSegment(cast)
+
+	dprintf("trying cast=%v (castLine=%v)", cast, castLine)
+
+	intersections := l.getIntersections(cast, infillDir, l1, l2)
+	n := len(intersections)
+	dprintf("%d intersections", n)
+	if n >= 2 {
+		from := lineFromSegment(intersections[0]).intersectionPoint(castLine)
+		to := lineFromSegment(intersections[1]).intersectionPoint(castLine)
+		s := &segment{from: from, to: to}
+		dprintf("adding infill segment: %v (%v -> %v)", s, intersections[0], intersections[1])
+		l.infill = append(l.infill, s)
+	}
+	//l.debug = append(l.debug, cast)
 }
 
 type byDist struct {
@@ -76,17 +117,10 @@ func (a byDist) Less(i, j int) bool {
 	}
 }
 
-func (l *Layer) sortSegments(angle float64) ([]*segment, []*segment) {
-	// ensure that all segments are on one side of the sorting line by placing it
-	// on the top-left corner if the slope is positive, and the top-right corner if
-	// the slope is negative.
-	var origin Vertex2
-	if math.Tan(angle) < 0 {
-		origin = Vertex2{l.stl.Min.X, l.stl.Min.Y}
-	} else {
-		origin = Vertex2{l.stl.Max.X, l.stl.Min.Y}
-	}
-	sortLine := newLine(origin, angle)
+// sortSegments returns two lists of sorted segments. The lists are sorted
+// by the segment's distance from the sorting line, one list for each segment end.
+func (l *Layer) sortSegments(angle float64, origin Vertex2) (l1, l2 []*segment) {
+	sortLine := lineFromAngle(origin, angle)
 	for _, s := range l.perimeters {
 		d1 := sortLine.dist(s.from)
 		d2 := sortLine.dist(s.to)
@@ -102,8 +136,8 @@ func (l *Layer) sortSegments(angle float64) ([]*segment, []*segment) {
 			s.dsecond = d1
 		}
 	}
-	l1 := make([]*segment, len(l.perimeters))
-	l2 := make([]*segment, len(l.perimeters))
+	l1 = make([]*segment, len(l.perimeters))
+	l2 = make([]*segment, len(l.perimeters))
 	copy(l1, l.perimeters)
 	copy(l2, l.perimeters)
 	sort.Sort(byDist{l1, 1})
@@ -111,13 +145,13 @@ func (l *Layer) sortSegments(angle float64) ([]*segment, []*segment) {
 	return l1, l2
 }
 
-func (l *Layer) getIntersections(cast *segment, l1, l2 []*segment) []*segment {
+func (l *Layer) getIntersections(cast *segment, infillDir int, l1, l2 []*segment) []*segment {
 	i := sort.Search(len(l1), func(i int) bool {
-		return checkSide(cast, l1[i].first) >= 0
+		return infillDir*checkSide(cast, l1[i].first) >= 0
 	})
 	matches1 := l1[:i]
 	j := sort.Search(len(l2), func(i int) bool {
-		return checkSide(cast, l2[i].second) >= 0
+		return infillDir*checkSide(cast, l2[i].second) >= 0
 	})
 	matches2 := l2[j:]
 
@@ -126,12 +160,14 @@ func (l *Layer) getIntersections(cast *segment, l1, l2 []*segment) []*segment {
 	for _, s := range matches1 {
 		matchMap[s]++
 	}
+
 	for _, s := range matches2 {
 		if _, ok := matchMap[s]; ok {
 			dprintf("%v intersects with %v", s, cast)
 			intersections = append(intersections, s)
 		}
 	}
+
 	return intersections
 }
 
@@ -145,7 +181,6 @@ func traverse(dot Vertex2, s *segment, d float64) Vertex2 {
 // checkSide returns -1, +1, or 0 if p is on one side of s, the other, or directly on s.
 func checkSide(s *segment, p Vertex2) int {
 	position := sign((s.to.X-s.from.X)*(p.Y-s.from.Y) - (s.to.Y-s.from.Y)*(p.X-s.from.X))
-	dprintf("position of %v in relation to %v is %d", p, s, position)
 	return position
 }
 
