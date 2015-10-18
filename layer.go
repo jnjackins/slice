@@ -1,6 +1,10 @@
 package slice
 
-import "fmt"
+import (
+	"fmt"
+
+	"sigint.ca/slice/internal/vector"
+)
 
 type Layer struct {
 	n          int // layer index
@@ -19,9 +23,9 @@ type segment struct {
 	mark            int     // indicates whether the segment has yet to be visited during infill
 }
 
-func (s *segment) shiftBy(v vector) {
-	s.from = Vertex2(vector(s.from).add(v))
-	s.to = Vertex2(vector(s.to).add(v))
+func (s *segment) shiftBy(v vector.V2) {
+	s.from = Vertex2(vector.V2(s.from).Add(v))
+	s.to = Vertex2(vector.V2(s.to).Add(v))
 }
 
 type Vertex2 struct {
@@ -29,8 +33,8 @@ type Vertex2 struct {
 }
 
 func (v1 Vertex2) distFrom(v2 Vertex2) float64 {
-	v := vector(v2).sub(vector(v1))
-	return v.length()
+	v := vector.V2(v2).Sub(vector.V2(v1))
+	return v.Length()
 }
 
 func (v Vertex2) String() string {

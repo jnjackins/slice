@@ -22,6 +22,8 @@ package slice
 import (
 	"math"
 	"sort"
+
+	"sigint.ca/slice/internal/vector"
 )
 
 const (
@@ -75,10 +77,10 @@ func (l *Layer) genInfill(cfg Config) {
 	shiftAngle := infillAngle + math.Pi/2.0
 	shiftLine := lineFromAngle(origin, shiftAngle)
 
-	// shift is vector representing the direction that we need to shift the
+	// shift is a vector representing the direction that we need to shift the
 	// cast line
-	v := vector(shiftLine.intersectionPoint(castLine)).sub(vector(origin))
-	shift := v.norm().mul(cfg.LineWidth)
+	v := vector.V2(shiftLine.intersectionPoint(castLine)).Sub(vector.V2(origin))
+	shift := v.Norm().Mul(cfg.LineWidth)
 
 	// shift the cast line inwards by cfg.LineWidth
 	dprintf("shifting by %v (%.1f°)", shift, shiftAngle*180/math.Pi)
@@ -192,9 +194,9 @@ func (l *Layer) getIntersections(cast *segment, infillDir int, l1, l2 []*segment
 }
 
 func traverse(dot Vertex2, s *segment, d float64) Vertex2 {
-	n := vector(s.second).sub(vector(s.first)).norm()
+	n := vector.V2(s.second).Sub(vector.V2(s.first)).Norm()
 	dprintf("normal of %v: %v", s, n)
-	v := vector(dot).add(n.mul(d))
+	v := vector.V2(dot).Add(n.Mul(d))
 	return Vertex2(v)
 }
 

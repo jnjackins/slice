@@ -156,7 +156,7 @@ func sliceSTL(stl *slice.STL) error {
 	var cfg = slice.Config{
 		DebugMode:     *debug,
 		LayerHeight:   0.4,
-		LineWidth:     0.2,
+		LineWidth:     1.0,
 		InfillSpacing: 1.0,
 		InfillAngle:   45.0,
 	}
