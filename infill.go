@@ -82,19 +82,25 @@ func (l *Layer) genInfill(cfg Config) {
 	v := vector.V2(shiftLine.intersectionPoint(castLine)).Sub(vector.V2(origin))
 	shift := v.Norm().Mul(cfg.LineWidth)
 
-	// shift the cast line inwards by cfg.LineWidth
-	dprintf("shifting by %v (%.1f°)", shift, shiftAngle*180/math.Pi)
-	cast.shiftBy(shift)
-	castLine = lineFromSegment(cast)
+	for {
+		// shift the cast line inwards by cfg.LineWidth
+		dprintf("shifting by %v (%.1f°)", shift, shiftAngle*180/math.Pi)
+		cast.shiftBy(shift)
+		castLine = lineFromSegment(cast)
 
-	dprintf("trying cast=%v (castLine=%v)", cast, castLine)
+		dprintf("trying cast=%v (castLine=%v)", cast, castLine)
 
-	intersections := l.getIntersections(cast, infillDir, l1, l2)
+		dprintf("DEBUG: infillDir: %v, checkSide: %v", infillDir, checkSide(cast, l2[len(l2)-1].second))
+		if infillDir*checkSide(cast, l2[len(l2)-1].second) < 0 {
+			dprintf("cast is beyond the furthest segment; returning")
+			return
+		}
 
-	// TODO: what do we do if there aren't 2 intersections?
-	n := len(intersections)
-	dprintf("%d intersections", n)
-	if n >= 2 {
+		intersections := l.getIntersections(cast, infillDir, l1, l2)
+		if len(intersections) < 2 {
+			continue
+		}
+
 		// get exact intersection points
 		points := make([]Vertex2, len(intersections))
 		for i, s := range intersections {
@@ -103,12 +109,14 @@ func (l *Layer) genInfill(cfg Config) {
 
 		// use the first two points
 		sort.Sort(verticesByDist{points, cast.from})
-		s := &segment{from: points[0], to: points[1]}
 
-		dprintf("adding infill segment: %v", s)
-		l.infill = append(l.infill, s)
+		for len(points) >= 2 {
+			s := &segment{from: points[0], to: points[1]}
+			dprintf("adding infill segment: %v", s)
+			l.infill = append(l.infill, s)
+			points = points[2:]
+		}
 	}
-	//l.debug = append(l.debug, cast)
 }
 
 type verticesByDist struct {
