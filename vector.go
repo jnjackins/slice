@@ -19,8 +19,11 @@ func (v vector) mul(d float64) vector {
 	return vector{X: v.X * d, Y: v.Y * d}
 }
 
+func (v vector) length() float64 {
+	return math.Sqrt((v.X * v.X) + (v.Y * v.Y))
+}
 func (v vector) norm() vector {
-	length := math.Sqrt((v.X * v.X) + (v.Y * v.Y))
+	length := v.length()
 	return vector{X: v.X / length, Y: v.Y / length}
 }
 

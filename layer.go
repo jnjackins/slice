@@ -28,6 +28,11 @@ type Vertex2 struct {
 	X, Y float64
 }
 
+func (v1 Vertex2) distFrom(v2 Vertex2) float64 {
+	v := vector(v2).sub(vector(v1))
+	return v.length()
+}
+
 func (v Vertex2) String() string {
 	return fmt.Sprintf("(%0.1f,%0.1f)", v.X, v.Y)
 }

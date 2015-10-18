@@ -88,32 +88,52 @@ func (l *Layer) genInfill(cfg Config) {
 	dprintf("trying cast=%v (castLine=%v)", cast, castLine)
 
 	intersections := l.getIntersections(cast, infillDir, l1, l2)
+
+	// TODO: what do we do if there aren't 2 intersections?
 	n := len(intersections)
 	dprintf("%d intersections", n)
 	if n >= 2 {
-		from := lineFromSegment(intersections[0]).intersectionPoint(castLine)
-		to := lineFromSegment(intersections[1]).intersectionPoint(castLine)
-		s := &segment{from: from, to: to}
-		dprintf("adding infill segment: %v (%v -> %v)", s, intersections[0], intersections[1])
+		// get exact intersection points
+		points := make([]Vertex2, len(intersections))
+		for i, s := range intersections {
+			points[i] = lineFromSegment(s).intersectionPoint(castLine)
+		}
+
+		// use the first two points
+		sort.Sort(verticesByDist{points, cast.from})
+		s := &segment{from: points[0], to: points[1]}
+
+		dprintf("adding infill segment: %v", s)
 		l.infill = append(l.infill, s)
 	}
 	//l.debug = append(l.debug, cast)
 }
 
-type byDist struct {
+type verticesByDist struct {
+	points []Vertex2
+	from   Vertex2
+}
+
+func (a verticesByDist) Len() int      { return len(a.points) }
+func (a verticesByDist) Swap(i, j int) { a.points[i], a.points[j] = a.points[j], a.points[i] }
+func (a verticesByDist) Less(i, j int) bool {
+	return a.points[i].distFrom(a.from) < a.points[j].distFrom(a.from)
+}
+
+type segmentsByDist struct {
 	data []*segment
 	end  int
 }
 
-func (a byDist) Len() int      { return len(a.data) }
-func (a byDist) Swap(i, j int) { a.data[i], a.data[j] = a.data[j], a.data[i] }
-func (a byDist) Less(i, j int) bool {
+func (a segmentsByDist) Len() int      { return len(a.data) }
+func (a segmentsByDist) Swap(i, j int) { a.data[i], a.data[j] = a.data[j], a.data[i] }
+func (a segmentsByDist) Less(i, j int) bool {
 	if a.end == 1 {
 		return a.data[i].dfirst < a.data[j].dfirst
 	} else if a.end == 2 {
 		return a.data[i].dsecond < a.data[j].dsecond
 	} else {
-		panic("byDist.Less: invalid end")
+		panic("segmentsByDist.Less: invalid end")
 	}
 }
 
@@ -140,8 +160,8 @@ func (l *Layer) sortSegments(angle float64, origin Vertex2) (l1, l2 []*segment) 
 	l2 = make([]*segment, len(l.perimeters))
 	copy(l1, l.perimeters)
 	copy(l2, l.perimeters)
-	sort.Sort(byDist{l1, 1})
-	sort.Sort(byDist{l2, 2})
+	sort.Sort(segmentsByDist{l1, 1})
+	sort.Sort(segmentsByDist{l2, 2})
 	return l1, l2
 }
 
