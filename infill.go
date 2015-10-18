@@ -90,7 +90,6 @@ func (l *Layer) genInfill(cfg Config) {
 
 		dprintf("trying cast=%v (castLine=%v)", cast, castLine)
 
-		dprintf("DEBUG: infillDir: %v, checkSide: %v", infillDir, checkSide(cast, l2[len(l2)-1].second))
 		if infillDir*checkSide(cast, l2[len(l2)-1].second) < 0 {
 			dprintf("cast is beyond the furthest segment; returning")
 			return
