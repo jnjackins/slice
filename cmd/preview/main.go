@@ -31,9 +31,9 @@ var (
 
 func main() {
 	log.SetFlags(0)
-	log.SetPrefix("vis: ")
+	log.SetPrefix("preview: ")
 	flag.Usage = func() {
-		log.Print("Usage: vis [options] file")
+		log.Print("Usage: preview [options] file")
 		flag.PrintDefaults()
 	}
 	flag.Parse()

@@ -7,9 +7,9 @@ Slice is a STL to G-code compiler for 3D printers.
 
 Try it out:
 ```
-go get -t sigint.ca/slice/cmd/vis
+go get -t sigint.ca/slice/cmd/preview
 cd $GOPATH/src/sigint.ca/slice
-go run cmd/vis/main.go testdata/pikachu.stl
+go run cmd/preview/main.go testdata/pikachu.stl
 ```
 
 Click and drag up and down to scroll through layers.
