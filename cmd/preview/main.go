@@ -72,11 +72,18 @@ func main() {
 	if err := sliceSTL(stl); err != nil {
 		log.Fatal(err)
 	}
-	imgs := drawLayers(stl)
+	imgs, err := drawLayers(stl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	r := imgs[0].Bounds()
 
 	log.Print("Launching UI...")
 	driver.Main(func(s screen.Screen) {
-		w, err := s.NewWindow(nil)
+		w, err := s.NewWindow(&screen.NewWindowOptions{
+			Width:  r.Dx(),
+			Height: r.Dy(),
+		})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -169,10 +176,10 @@ func sliceSTL(stl *slice.STL) error {
 	return nil
 }
 
-func drawLayers(stl *slice.STL) []*image.RGBA {
+func drawLayers(stl *slice.STL) ([]*image.RGBA, error) {
 	log.Print("drawing layers...")
 	if len(stl.Layers) == 0 {
-		log.Fatal("no layers to draw")
+		return nil, fmt.Errorf("no layers to draw")
 	}
 	t := time.Now()
 
@@ -190,8 +197,11 @@ func drawLayers(stl *slice.STL) []*image.RGBA {
 	}
 	wg.Wait()
 
+	if len(imgs) < 1 {
+		return nil, fmt.Errorf("no layers were drawn")
+	}
 	log.Printf("drawing took %v", time.Now().Sub(t))
-	return imgs
+	return imgs, nil
 }
 
 func drawLayerNumber(dst draw.Image, n int) {
