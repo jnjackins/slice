@@ -1,34 +1,25 @@
 package slice
 
-// Infill algorithm (for one layer):
+// Infill algorithm description (for one layer):
 //
-// - for each segment s, set s.first and s.second to some permutation of s.from and s.to in relation to a line sortLine with angle InfillAngle
-// - sort all segments into a list l1, and all segments into a list l2 by distance of s.first (l1) and s.second (l2) from sortLine
-// - use the same process for two lists l1Perp and l2Perp, sorted using InfillAngle rotated by 90° (used for "turns" in the infill)
-// - all segments are initially white
-// loop1: until all segments are marked grey:
-//   - set dot to vector v, defined by a point (segment end closest to (0,0) whose segment is not grey) and an angle InfillAngle
-//   - shift dot and v down-right so that dot is aligned with the next good InfillSpacing value (TODO - how to calculate this?)
-//     -- if such a value does not exist on the segment, mark the segment grey and go back to loop1
-//   loop2: until there are no intesections with v:
-//     - lookup (binary search) segments in l1 with dist(first, v) < 0 (matches1)
-//     - lookup segments in l2 with with dist(second, v) > 0 (matches2)
-//     - find all segments in both matches1 and matches2 - these are segments that intersect with v
-//     - calculate intersection points with those segments, find closest
-//     - advance dot to the intersection, move v to dot and rotate v by 90° (or -90°)
-//     - mark the segment grey
-//     - repeat the turn-advance process until we are back near the starting point and facing the same direction as InfillAngle again
+// - choose a line sortLine with InfillAngle, which passes through a corner of the layer's bounds (infill will proceed from here)
+// - for each segment s, set s.first and s.second to some permutation of s.from and s.to, so that s.first is closer to sortLine, and s.second is further
+// - sort all segments into a list l1, and all segments again into a list l2 by distance of s.first (into l1) and s.second (into l2) from sortLine
+// - choose a "cast" line passing through l1[0].first (the segment vertex closest to sortLine), with angle infillAngle
+// loop: until cast is beyond l2[len(l2)-1].second (the furthest vertex from sortLine):
+//		- choose an end on cast to call "dot"
+//		- lookup segments that intersect with cast:
+//			-- use binary search on l1 and l2 to find segments where s.first is on one side of cast, and s.second is on the other
+//		- calculate the exact intersection points of cast and these segments
+//		- order these points by distance from dot
+//		- draw infill segments between each pair of intersection points
+//		- advance cast by cfg.InfillSpacing
 
 import (
 	"math"
 	"sort"
 
 	"sigint.ca/slice/internal/vector"
-)
-
-const (
-	markWhite = iota
-	markGrey
 )
 
 func (l *Layer) genInfill(cfg Config) {
@@ -200,14 +191,8 @@ func (l *Layer) getIntersections(cast *segment, infillDir int, l1, l2 []*segment
 	return intersections
 }
 
-func traverse(dot Vertex2, s *segment, d float64) Vertex2 {
-	n := vector.V2(s.second).Sub(vector.V2(s.first)).Norm()
-	dprintf("normal of %v: %v", s, n)
-	v := vector.V2(dot).Add(n.Mul(d))
-	return Vertex2(v)
-}
-
 // checkSide returns -1, +1, or 0 if p is on one side of s, the other, or directly on s.
+// TODO: define what "one side" or "the other" means
 func checkSide(s *segment, p Vertex2) int {
 	position := sign((s.to.X-s.from.X)*(p.Y-s.from.Y) - (s.to.Y-s.from.Y)*(p.X-s.from.X))
 	return position
