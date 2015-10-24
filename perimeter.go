@@ -10,23 +10,58 @@ func (s *STL) sliceLayer(n int, z float64, cfg Config) *Layer {
 		}
 	}
 
-	// slice each facet to find the perimeters
+	// first, slice all the facets
 	segments := make([]*segment, 0, len(facets))
 	zs := segment{}
 	for _, f := range facets {
 		s := sliceFacet(f, z)
-		if s != zs {
-			segments = append(segments, &s)
+		if *s != zs {
+			segments = append(segments, s)
+		} else {
+			dprintf("discarding empty segment")
 		}
 	}
-	dprintf("layer z=%0.3f: %d facets / %d perimeter segments", z, len(facets), len(segments))
+	dprintf("total for layer z=%0.3f: %d facets / %d perimeter segments", z, len(facets), len(segments))
+
+	if len(segments) == 0 {
+		wprintf("no segments, returning nil layer")
+		return nil
+	}
+
+	// order the sliced segments into perimeters
+	// (brute force)
+	dprintf("ordering and connecting perimeter segments")
+	ordered := make([]*segment, len(segments))
+	dprintf("starting from %v", segments[0])
+	ordered[0] = segments[0]
+	segments = segments[1:]
+outer:
+	for i := 0; i < len(ordered)-1; i++ {
+		for j := 0; j < len(segments); j++ {
+			if fixOrder(ordered[i], segments[j]) {
+				ordered[i+1] = segments[j]
+				segments = append(segments[:j], segments[j+1:]...) // delete segments[j]
+				dprintf("connected %v to %v (%d and %d of %d)", ordered[i], ordered[i+1], i+1, i+2, len(ordered))
+				continue outer
+			}
+		}
+		// ordered[i] was not connected to anything
+		if len(segments) > 0 {
+			dprintf("reached end of perimeter, starting next at %v (%d and %d of %d)", segments[0], i+1, i+2, len(ordered))
+			ordered[i+1] = segments[0]
+			segments = segments[1:]
+		}
+	}
+	if len(segments) != 0 {
+		wprintf("segments left over: %d", len(segments))
+	}
 
 	l := &Layer{
 		n:          n,
 		z:          z,
 		stl:        s,
 		facets:     facets,
-		perimeters: segments,
+		perimeters: ordered,
 	}
 
 	l.genInfill(cfg)
@@ -35,7 +70,7 @@ func (s *STL) sliceLayer(n int, z float64, cfg Config) *Layer {
 }
 
 //TODO: case where segment is one of the edges of the triangle
-func sliceFacet(f *facet, z float64) segment {
+func sliceFacet(f *facet, z float64) *segment {
 	var ends [3]Vertex2
 	var i int
 	v := f.vertices
@@ -75,13 +110,35 @@ func sliceFacet(f *facet, z float64) segment {
 	// the slice plane
 	if i == 0 {
 		//TODO
-		dprintf("warning: no intersections at z=%f", z)
-		return segment{}
+		wprintf("no intersections at z=%f", z)
+		return &segment{}
 	} else if i != 2 {
-		dprintf("warning: found %d intersections when finding segment at z=%f", i, z)
-		return segment{}
+		wprintf("found %d intersections when finding segment at z=%f", i, z)
+		return &segment{}
 	}
 
-	dprintf("sliced segment: {%v - %v}", ends[0], ends[1])
-	return segment{from: ends[0], to: ends[1]}
+	dprintf("sliced segment: %v-%v", ends[0], ends[1])
+	return &segment{from: ends[0], to: ends[1]}
+}
+
+// fixOrder returns true if it was able to order the segments (i.e. they are connected)
+func fixOrder(first, second *segment) bool {
+	if first.to.touches(second.from) {
+		// perfect
+		return true
+	} else if first.to.touches(second.to) {
+		// second is backwards
+		second.from, second.to = second.to, second.from
+		return true
+	} else if first.from.touches(second.from) {
+		// first is backwards
+		first.from, first.to = first.to, first.from
+		return true
+	} else if first.from.touches(second.to) {
+		// both are backwards
+		first.from, first.to = first.to, first.from
+		second.from, second.to = second.to, second.from
+		return true
+	}
+	return false
 }

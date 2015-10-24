@@ -30,16 +30,3 @@ func (s *segment) shiftBy(v vector.V2) {
 func (s *segment) String() string {
 	return fmt.Sprintf("%v-%v", s.from, s.to)
 }
-
-type Vertex2 struct {
-	X, Y float64
-}
-
-func (v1 Vertex2) distFrom(v2 Vertex2) float64 {
-	v := vector.V2(v2).Sub(vector.V2(v1))
-	return v.Length()
-}
-
-func (v Vertex2) String() string {
-	return fmt.Sprintf("(%0.1f,%0.1f)", v.X, v.Y)
-}
