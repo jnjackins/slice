@@ -2,7 +2,6 @@ package slice
 
 import (
 	"fmt"
-	"log"
 	"math"
 )
 
@@ -25,7 +24,7 @@ func lineFromAngle(origin Vertex2, angle float64) line {
 func lineFromSegment(s *segment) line {
 	div := s.to.X - s.from.X
 	if div == 0 {
-		log.Printf("lineFromSegment: warning: division by 0")
+		wprintf("lineFromSegment: division by 0")
 	}
 	slope := (s.to.Y - s.from.Y) / div
 	return line{m: slope, b: s.from.Y - slope*s.from.X}
@@ -34,7 +33,7 @@ func lineFromSegment(s *segment) line {
 func (l1 line) intersectionPoint(l2 line) Vertex2 {
 	div := l1.m - l2.m
 	if div == 0 {
-		log.Printf("intersectionPoint: warning: division by 0")
+		wprintf("intersectionPoint: division by 0")
 	}
 	x := (l2.b - l1.b) / div
 	y := l2.m*x + l2.b

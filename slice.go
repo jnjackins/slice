@@ -30,6 +30,10 @@ func dprintf(format string, args ...interface{}) {
 	}
 }
 
+func wprintf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "WARNING: "+format+"\n", args...)
+}
+
 // Slice divides parsed STL data into layers and optionally compiles G-code
 // for each layer. The G-code is written to w, if w is not nil.
 // After Slice returns, the resulting layers can be accessed as the STL's
