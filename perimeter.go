@@ -28,43 +28,17 @@ func (s *STL) sliceLayer(n int, z float64, cfg Config) *Layer {
 		return nil
 	}
 
-	// order the sliced segments into perimeters
-	// (brute force)
-	dprintf("ordering and connecting perimeter segments")
-	ordered := make([]*segment, len(segments))
-	dprintf("starting from %v", segments[0])
-	ordered[0] = segments[0]
-	segments = segments[1:]
-outer:
-	for i := 0; i < len(ordered)-1; i++ {
-		for j := 0; j < len(segments); j++ {
-			if fixOrder(ordered[i], segments[j]) {
-				ordered[i+1] = segments[j]
-				segments = append(segments[:j], segments[j+1:]...) // delete segments[j]
-				dprintf("connected %v to %v (%d and %d of %d)", ordered[i], ordered[i+1], i+1, i+2, len(ordered))
-				continue outer
-			}
-		}
-		// ordered[i] was not connected to anything
-		if len(segments) > 0 {
-			dprintf("reached end of perimeter, starting next at %v (%d and %d of %d)", segments[0], i+1, i+2, len(ordered))
-			ordered[i+1] = segments[0]
-			segments = segments[1:]
-		}
-	}
-	if len(segments) != 0 {
-		wprintf("segments left over: %d", len(segments))
-	}
+	perimeters := getPerimeters(segments)
+	solids := getSolids(perimeters)
 
 	l := &Layer{
-		n:          n,
-		z:          z,
-		stl:        s,
-		facets:     facets,
-		perimeters: ordered,
+		n:      n,
+		z:      z,
+		stl:    s,
+		solids: solids,
 	}
 
-	l.genInfill(cfg)
+	//l.genInfill(cfg)
 
 	return l
 }
@@ -121,6 +95,53 @@ func sliceFacet(f *facet, z float64) *segment {
 	return &segment{from: ends[0], to: ends[1]}
 }
 
+// order segments into perimeters (brute force)
+func getPerimeters(segments []*segment) [][]*segment {
+	perimeters := make([][]*segment, 0)
+	var current []*segment
+
+	dprintf("ordering and connecting perimeter segments")
+outer:
+	for {
+		if len(segments) == 0 {
+			if current != nil {
+				perimeters = append(perimeters, current)
+			}
+			break
+		}
+		if current == nil {
+			dprintf("starting perimeter at %v (%d remaining)", segments[0], len(segments))
+			current = make([]*segment, 1)
+			current[0] = segments[0]
+			segments = segments[1:]
+		}
+		last := len(current) - 1
+		for i := 0; i < len(segments); i++ {
+			if fixOrder(current[last], segments[i]) {
+				current = append(current, segments[i])
+				segments = append(segments[:i], segments[i+1:]...) // delete segments[j]
+				dprintf("connected %v to %v (perimeter length: %d)", current[last], current[last+1], len(current))
+				continue outer
+			}
+		}
+		perimeters = append(perimeters, current)
+		current = nil
+	}
+	if len(segments) != 0 {
+		wprintf("getPerimeters: segments left over after ordering: %d", len(segments))
+	}
+
+	return perimeters
+}
+
+func getSolids(perimeters [][]*segment) []*solid {
+	solids := make([]*solid, 0)
+	for _, p := range perimeters {
+		solids = append(solids, &solid{perimeters: p})
+	}
+	return solids
+}
+
 // fixOrder returns true if it was able to order the segments (i.e. they are connected)
 func fixOrder(first, second *segment) bool {
 	if first.to.touches(second.from) {
@@ -141,4 +162,14 @@ func fixOrder(first, second *segment) bool {
 		return true
 	}
 	return false
+}
+
+func (l *Layer) contains(perimeter []*segment, v Vertex2) bool {
+	edge := Vertex2{X: l.stl.Min.X, Y: v.Y}
+	ray := &segment{from: edge, to: v}
+	intersections, _ := ray.getIntersections(perimeter)
+	if len(intersections)%2 == 0 {
+		return false
+	}
+	return true
 }

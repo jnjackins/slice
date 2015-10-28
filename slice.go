@@ -42,7 +42,7 @@ func (s *STL) Slice(w io.Writer, cfg Config) error {
 	debug = cfg.DebugMode
 
 	var wg sync.WaitGroup
-	nLayers := int((s.Max.Z-s.Min.Z)/cfg.LayerHeight) + 1
+	nLayers := int(0.5 + (s.Max.Z-s.Min.Z)/cfg.LayerHeight)
 	s.Layers = make([]*Layer, nLayers)
 	h := cfg.LayerHeight
 
