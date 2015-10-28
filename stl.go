@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"strings"
 )
 
 type STL struct {
@@ -34,24 +33,25 @@ func (v Vertex3) String() string {
 	return fmt.Sprintf("(%0.3f,%0.3f,%0.3f)", v.X, v.Y, v.Z)
 }
 
-// Parse parses a new STL from an io.ReadSeeker.
-func Parse(r io.ReadSeeker) (*STL, error) {
+// Parse parses a new STL from an io.Reader.
+func Parse(r io.Reader) (*STL, error) {
 	// test for ascii stl format
-	//TODO: just read 6 bytes
 	bufr := bufio.NewReader(r)
-	if line, err := bufr.ReadString('\n'); err == nil {
-		if strings.HasPrefix(line, "solid ") {
-			return nil, fmt.Errorf("ascii format STL not supported")
-		}
+	top, err := bufr.Peek(6)
+	if err != nil {
+		return nil, err
+	}
+	if string(top) == "solid " {
+		return nil, fmt.Errorf("ascii format STL not supported")
 	}
 
 	// discard text header
-	if _, err := r.Seek(80, 0); err != nil {
+	if _, err := bufr.Discard(80); err != nil {
 		return nil, fmt.Errorf("error decoding STL: %v", err)
 	}
 
 	var nfacets uint32
-	if err := binary.Read(r, binary.LittleEndian, &nfacets); err != nil {
+	if err := binary.Read(bufr, binary.LittleEndian, &nfacets); err != nil {
 		return nil, fmt.Errorf("error decoding STL: %v", err)
 	}
 
@@ -60,13 +60,13 @@ func Parse(r io.ReadSeeker) (*STL, error) {
 	min, max := Vertex3{big, big, big}, Vertex3{small, small, small}
 	facets := make([]*facet, nfacets)
 	for i := range facets {
-		normal, err := getVertex(r)
+		normal, err := getVertex(bufr)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding STL: %v", err)
 		}
 		var vertices [3]Vertex3
 		for vi := range vertices {
-			v, err := getVertex(r)
+			v, err := getVertex(bufr)
 			if err != nil {
 				return nil, fmt.Errorf("error decoding STL: %v", err)
 			}
@@ -97,7 +97,7 @@ func Parse(r io.ReadSeeker) (*STL, error) {
 			lowZ:     math.Min(math.Min(vertices[0].Z, vertices[1].Z), vertices[2].Z),
 			highZ:    math.Max(math.Max(vertices[0].Z, vertices[1].Z), vertices[2].Z),
 		}
-		if _, err := r.Seek(2, 1); err != nil {
+		if _, err := bufr.Discard(2); err != nil {
 			return nil, fmt.Errorf("error decoding STL: %v", err)
 		}
 	}

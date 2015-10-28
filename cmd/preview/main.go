@@ -63,11 +63,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Print("parsing STL...")
+	t := time.Now()
 	stl, err := slice.Parse(f)
 	if err != nil {
 		log.Fatal(err)
 	}
 	f.Close()
+	log.Printf("parsing took %v", time.Now().Sub(t))
 
 	if err := sliceSTL(stl); err != nil {
 		log.Fatal(err)
