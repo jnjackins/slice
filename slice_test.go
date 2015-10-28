@@ -36,4 +36,5 @@ func TestSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	out.Close()
+	os.Remove("./testdata/output.gcode")
 }
