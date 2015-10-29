@@ -50,10 +50,10 @@ func (ray *segment) getIntersections(target []*segment) ([]*segment, []Vertex2) 
 	points := make([]Vertex2, 0)
 	for _, s := range target {
 		// eliminate cases where the segments do not have overlapping X coordinates
-		if min(ray.from.X, ray.to.X) > max(s.from.X, s.to.X) {
+		if math.Min(ray.from.X, ray.to.X) > math.Max(s.from.X, s.to.X) {
 			continue
 		}
-		if max(ray.from.X, ray.to.X) < min(s.from.X, s.to.X) {
+		if math.Max(ray.from.X, ray.to.X) < math.Min(s.from.X, s.to.X) {
 			continue
 		}
 
@@ -68,8 +68,8 @@ func (ray *segment) getIntersections(target []*segment) ([]*segment, []Vertex2) 
 		y := l1.m*x + l1.b
 
 		// test that the intersection is within the domain of the line segments
-		if (x < max(min(ray.from.X, ray.to.X), min(s.from.X, s.to.X))) ||
-			(x > min(max(ray.from.X, ray.to.X), max(s.from.X, s.to.X))) {
+		if (x < math.Max(math.Min(ray.from.X, ray.to.X), math.Min(s.from.X, s.to.X))) ||
+			(x > math.Min(math.Max(ray.from.X, ray.to.X), math.Max(s.from.X, s.to.X))) {
 			continue
 		}
 		intersecting = append(intersecting, s)

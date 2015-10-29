@@ -55,7 +55,7 @@ func Parse(r io.Reader) (*STL, error) {
 		return nil, fmt.Errorf("error decoding STL: %v", err)
 	}
 
-	small := -1 * math.MaxFloat64
+	small := -math.MaxFloat64
 	big := math.MaxFloat64
 	min, max := Vertex3{big, big, big}, Vertex3{small, small, small}
 	facets := make([]*facet, nfacets)
@@ -71,25 +71,12 @@ func Parse(r io.Reader) (*STL, error) {
 				return nil, fmt.Errorf("error decoding STL: %v", err)
 			}
 			vertices[vi] = v
-
-			if v.X < min.X {
-				min.X = v.X
-			}
-			if v.X > max.X {
-				max.X = v.X
-			}
-			if v.Y < min.Y {
-				min.Y = v.Y
-			}
-			if v.Y > max.Y {
-				max.Y = v.Y
-			}
-			if v.Z < min.Z {
-				min.Z = v.Z
-			}
-			if v.Z > max.Z {
-				max.Z = v.Z
-			}
+			min.X = math.Min(min.X, v.X)
+			max.X = math.Max(max.X, v.X)
+			min.Y = math.Min(min.Y, v.Y)
+			max.Y = math.Max(max.Y, v.Y)
+			min.Z = math.Min(min.Z, v.Z)
+			max.Z = math.Max(max.Z, v.Z)
 		}
 		facets[i] = &facet{
 			normal:   normal,
