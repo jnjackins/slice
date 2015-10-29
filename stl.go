@@ -16,7 +16,6 @@ type STL struct {
 }
 
 type facet struct {
-	normal      Vertex3 //TODO: ignore?
 	vertices    [3]Vertex3
 	lowZ, highZ float64
 }
@@ -60,10 +59,7 @@ func Parse(r io.Reader) (*STL, error) {
 	min, max := Vertex3{big, big, big}, Vertex3{small, small, small}
 	facets := make([]*facet, nfacets)
 	for i := range facets {
-		normal, err := getVertex(bufr)
-		if err != nil {
-			return nil, fmt.Errorf("error decoding STL: %v", err)
-		}
+		bufr.Discard(12) // discard normal
 		var vertices [3]Vertex3
 		for vi := range vertices {
 			v, err := getVertex(bufr)
@@ -79,7 +75,6 @@ func Parse(r io.Reader) (*STL, error) {
 			max.Z = math.Max(max.Z, v.Z)
 		}
 		facets[i] = &facet{
-			normal:   normal,
 			vertices: vertices,
 			lowZ:     math.Min(math.Min(vertices[0].Z, vertices[1].Z), vertices[2].Z),
 			highZ:    math.Max(math.Max(vertices[0].Z, vertices[1].Z), vertices[2].Z),
