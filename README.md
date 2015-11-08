@@ -1,19 +1,12 @@
 Slice
 =====
 
-Slice is a STL to G-code compiler for 3D printers.
+Slice is a set of tools and Go packages for compiling STL files into toolpaths for 3D printers.
 
 [Package documentation](https://godoc.org/sigint.ca/slice)
 
-## Goals:
-* **Fast** - never wait more than 1 second
-* **Robust** - never crash
-* **Multi-platform** - run on any platform supported by [Go](https://golang.org/doc/install#requirements),
-with minimal dependencies
-
 ## What works:
 * Perimeter slicing
-* Basic linear infill
 * Sliced layer previews
 
 ## What doesn't work:
