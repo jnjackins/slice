@@ -49,7 +49,7 @@ func (s *STL) Slice(w io.Writer, cfg Config) error {
 	// slice in parallel if not in debug mode
 	if debug {
 		for i := range s.Layers {
-			s.Layers[i] = s.sliceLayer(i, 0.001+float64(i)*h, cfg)
+			s.Layers[i] = s.sliceLayer(i, s.Min.Z+0.001+float64(i)*h, cfg)
 		}
 	} else {
 		for i := range s.Layers {
