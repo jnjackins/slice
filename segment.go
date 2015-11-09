@@ -60,7 +60,7 @@ func (ray *segment) getIntersections(target []*segment) ([]*segment, []Vertex2) 
 		}
 
 		l1, l2 := ray.getLine(), s.getLine()
-		if approxEquals(l1.m, l2.m, 0.00001) {
+		if approxEquals(l1.m, l2.m, 0.000001) {
 			// l1 and l2 are parallel
 			continue
 		}
@@ -97,7 +97,7 @@ func (ray *segment) getIntersections(target []*segment) ([]*segment, []Vertex2) 
 
 // checkDomain returns true if v is within the domain x1..x2, or false otherwise
 func inRange(test, v1, v2 float64) bool {
-	return test >= math.Min(v1, v2)-0.0001 && test <= math.Max(v1, v2)+0.0001
+	return test >= math.Min(v1, v2)-0.000001 && test <= math.Max(v1, v2)+0.000001
 }
 
 type line struct {
