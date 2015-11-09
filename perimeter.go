@@ -216,9 +216,6 @@ func fixOrder(first, second *segment) bool {
 		second.from, second.to = second.to, second.from
 		return true
 	}
-	if first.from.near(second.from) || first.from.near(second.to) ||
-		first.to.near(second.from) || first.to.near(second.to) {
-	}
 	return false
 }
 
