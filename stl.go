@@ -2,6 +2,7 @@ package slice
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -40,26 +41,14 @@ func Parse(r io.Reader) (*STL, error) {
 	if err != nil {
 		return nil, err
 	}
-	if string(top) == "solid " {
-		return nil, fmt.Errorf("ascii format STL not supported")
-	}
 
-	// discard text header
-	if _, err := bufr.Discard(80); err != nil {
-		return nil, fmt.Errorf("error decoding STL: %v", err)
-	}
-
-	var nfacets uint32
-	if err := binary.Read(bufr, binary.LittleEndian, &nfacets); err != nil {
-		return nil, fmt.Errorf("error decoding STL: %v", err)
-	}
-
-	small := -math.MaxFloat64
-	big := math.MaxFloat64
+	var getVertex func(r *bufio.Reader) (Vertex3, error)
+	var facets []*facet
+	small := math.Inf(-1)
+	big := math.Inf(+1)
 	min, max := Vertex3{big, big, big}, Vertex3{small, small, small}
-	facets := make([]*facet, nfacets)
-	for i := range facets {
-		bufr.Discard(12) // discard normal
+
+	getFacet := func() (*facet, error) {
 		var vertices [3]Vertex3
 		for vi := range vertices {
 			v, err := getVertex(bufr)
@@ -74,13 +63,67 @@ func Parse(r io.Reader) (*STL, error) {
 			min.Z = math.Min(min.Z, v.Z)
 			max.Z = math.Max(max.Z, v.Z)
 		}
-		facets[i] = &facet{
+		return &facet{
 			vertices: vertices,
 			lowZ:     math.Min(math.Min(vertices[0].Z, vertices[1].Z), vertices[2].Z),
 			highZ:    math.Max(math.Max(vertices[0].Z, vertices[1].Z), vertices[2].Z),
+		}, nil
+	}
+
+	if string(top) == "solid " {
+		getVertex = getVertexAscii
+
+		// discard header
+		bufr.ReadLine()
+
+		facets = make([]*facet, 0)
+		for {
+			bufr.ReadLine() // discard normal
+			bufr.ReadLine() // discard "outer loop"
+
+			f, err := getFacet()
+			if err != nil {
+				return nil, err
+			}
+			facets = append(facets, f)
+
+			bufr.ReadLine() // discard "endloop"
+			bufr.ReadLine() // discard "endfacet"
+
+			nextWord, err := bufr.Peek(8)
+			if err != nil {
+				return nil, fmt.Errorf("error decoding STL: %v", err)
+			}
+			if string(nextWord) == "endsolid" {
+				break
+			}
 		}
-		if _, err := bufr.Discard(2); err != nil {
+	} else {
+		getVertex = getVertexBinary
+
+		// discard header
+		if _, err := bufr.Discard(80); err != nil {
 			return nil, fmt.Errorf("error decoding STL: %v", err)
+		}
+
+		var nfacets uint32
+		if err := binary.Read(bufr, binary.LittleEndian, &nfacets); err != nil {
+			return nil, fmt.Errorf("error decoding STL: %v", err)
+		}
+
+		facets = make([]*facet, nfacets)
+		for i := range facets {
+			bufr.Discard(12) // discard normal
+
+			f, err := getFacet()
+			if err != nil {
+				return nil, err
+			}
+			facets[i] = f
+
+			if _, err := bufr.Discard(2); err != nil {
+				return nil, fmt.Errorf("error decoding STL: %v", err)
+			}
 		}
 	}
 
@@ -92,7 +135,25 @@ func Parse(r io.Reader) (*STL, error) {
 	return &s, nil
 }
 
-func getVertex(r io.Reader) (Vertex3, error) {
+func getVertexAscii(r *bufio.Reader) (Vertex3, error) {
+	var x, z, y float32
+
+	// sometimes ASCII STLs are indented, sometimes they aren't. strip leading whitespace
+	// if it exists.
+	s, _, err := r.ReadLine()
+	if err != nil {
+		return Vertex3{}, err
+	}
+	bytes.TrimSpace(s)
+
+	if _, err := fmt.Sscanf(string(s), "vertex %f %f %f\n", &x, &y, &z); err != nil {
+		return Vertex3{}, err
+	}
+	v := Vertex3{X: float64(x), Y: float64(y), Z: float64(z)}
+	return v, nil
+}
+
+func getVertexBinary(r *bufio.Reader) (Vertex3, error) {
 	var x, z, y float32
 	err := binary.Read(r, binary.LittleEndian, &x)
 	if err != nil {
