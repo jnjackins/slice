@@ -1,13 +1,23 @@
 package slice
 
-func approxEquals(v1, v2 float64) bool {
-	return abs(v1-v2) < 0.00001
+import "math"
+
+func round(v float64) int {
+	if v > 0.0 {
+		return int(v + 0.5)
+	} else if v < 0.0 {
+		return int(v - 0.5)
+	} else {
+		return 0
+	}
 }
 
-// faster than math.Abs
-func abs(v float64) float64 {
-	if v < 0 {
-		return -v
+func approxEquals(v1, v2, delta float64) bool {
+	if v1 == v2 {
+		return true
 	}
-	return v
+	if math.Abs(v1-v2) < delta {
+		return true
+	}
+	return false
 }

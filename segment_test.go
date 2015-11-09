@@ -22,9 +22,9 @@ func TestGetIntersections(t *testing.T) {
 	}
 
 	for _, r := range testRays {
-		intersections, _ := r.ray.getIntersections(p)
+		intersections, ip := r.ray.getIntersections(p)
 		if len(intersections) != r.n {
-			t.Errorf("%v.getIntersections(%v) == %d, expected %d", r.ray, p, len(intersections), r.n)
+			t.Errorf("%v.getIntersections(%v) == %d, expected %d (intersection point is %v", r.ray, p, len(intersections), r.n, ip)
 		}
 	}
 }

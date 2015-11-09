@@ -29,10 +29,12 @@ func (s *segment) getLine() *line {
 		return s.line
 	}
 	div := s.to.X - s.from.X
+	var slope float64
 	if div == 0 {
-		wprintf("lineFromSegment: division by 0")
+		slope = math.Inf(+1)
+	} else {
+		slope = (s.to.Y - s.from.Y) / div
 	}
-	slope := (s.to.Y - s.from.Y) / div
 	s.line = &line{m: slope, b: s.from.Y - slope*s.from.X}
 	return s.line
 }
@@ -50,32 +52,52 @@ func (ray *segment) getIntersections(target []*segment) ([]*segment, []Vertex2) 
 	points := make([]Vertex2, 0)
 	for _, s := range target {
 		// eliminate cases where the segments do not have overlapping X coordinates
-		if math.Min(ray.from.X, ray.to.X) > math.Max(s.from.X, s.to.X) {
-			continue
-		}
 		if math.Max(ray.from.X, ray.to.X) < math.Min(s.from.X, s.to.X) {
 			continue
 		}
+		if math.Min(ray.from.X, ray.to.X) > math.Max(s.from.X, s.to.X) {
+			continue
+		}
 
-		// eliminate cases where the segments are parallel
 		l1, l2 := ray.getLine(), s.getLine()
-		if approxEquals(l1.m, l2.m) {
+		if approxEquals(l1.m, l2.m, 0.00001) {
+			// l1 and l2 are parallel
 			continue
 		}
 
 		// calculate point of intersection
-		x := (l2.b - l1.b) / (l1.m - l2.m) // non-zero divisor (verified slopes are not equal above)
-		y := l1.m*x + l1.b
-
-		// test that the intersection is within the domain of the line segments
-		if (x < math.Max(math.Min(ray.from.X, ray.to.X), math.Min(s.from.X, s.to.X))) ||
-			(x > math.Min(math.Max(ray.from.X, ray.to.X), math.Max(s.from.X, s.to.X))) {
-			continue
+		var v Vertex2
+		if math.IsInf(l1.m, +1) {
+			// ray is vertical
+			v.X = ray.from.X
+			v.Y = l2.m*v.X + l2.b
+			if !inRange(v.Y, s.from.Y, s.to.Y) {
+				continue
+			}
+		} else if math.IsInf(l2.m, +1) {
+			// s is vertical
+			v.X = s.from.X
+			v.Y = l1.m*v.X + l1.b
+			if !inRange(v.Y, s.from.Y, s.to.Y) {
+				continue
+			}
+		} else {
+			v.X = (l2.b - l1.b) / (l1.m - l2.m)
+			v.Y = l1.m*v.X + l1.b // doesn't matter which line we use in this case
+			if !inRange(v.X, s.from.X, s.to.X) {
+				continue
+			}
 		}
+
 		intersecting = append(intersecting, s)
-		points = append(points, Vertex2{X: x, Y: y})
+		points = append(points, v)
 	}
 	return intersecting, points
+}
+
+// checkDomain returns true if v is within the domain x1..x2, or false otherwise
+func inRange(test, v1, v2 float64) bool {
+	return test >= math.Min(v1, v2)-0.0001 && test <= math.Max(v1, v2)+0.0001
 }
 
 type line struct {
