@@ -109,6 +109,7 @@ func main() {
 		redraw := func() {
 			draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
 			drawLayerNumber(b.RGBA(), layer)
+			w.Send(paint.Event{})
 		}
 
 		for e := range w.Events() {
