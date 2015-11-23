@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"sigint.ca/slice/internal/vector"
 )
 
 type STL struct {
@@ -17,6 +19,7 @@ type STL struct {
 }
 
 type facet struct {
+	normal      vector.V3
 	vertices    [3]Vertex3
 	lowZ, highZ float64
 }
@@ -63,11 +66,13 @@ func Parse(r io.Reader) (*STL, error) {
 			min.Z = math.Min(min.Z, v.Z)
 			max.Z = math.Max(max.Z, v.Z)
 		}
-		return &facet{
+		f := &facet{
 			vertices: vertices,
 			lowZ:     math.Min(math.Min(vertices[0].Z, vertices[1].Z), vertices[2].Z),
 			highZ:    math.Max(math.Max(vertices[0].Z, vertices[1].Z), vertices[2].Z),
-		}, nil
+		}
+		f.calculateNormal()
+		return f, nil
 	}
 
 	if string(top) == "solid " {
@@ -170,4 +175,15 @@ func getVertexBinary(r *bufio.Reader) (Vertex3, error) {
 
 	v := Vertex3{X: float64(x), Y: float64(y), Z: float64(z)}
 	return v, nil
+}
+
+func (f *facet) calculateNormal() {
+	v := vector.V3(f.vertices[1]).Sub(vector.V3(f.vertices[0]))
+	w := vector.V3(f.vertices[2]).Sub(vector.V3(f.vertices[0]))
+	n := vector.V3{
+		X: (v.Y * w.Z) - (v.Z * w.Y),
+		Y: (v.Z * w.X) - (v.X * w.Z),
+		Z: (v.X * w.Y) - (v.Y * w.X),
+	}
+	f.normal = n.Norm()
 }
