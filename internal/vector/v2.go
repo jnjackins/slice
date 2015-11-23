@@ -6,8 +6,7 @@ import (
 )
 
 type V2 struct {
-	X float64
-	Y float64
+	X, Y float64
 }
 
 func (v1 V2) Sub(v2 V2) V2 {
