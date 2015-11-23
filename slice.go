@@ -1,4 +1,4 @@
-// TODO: split 1 layer into sublayers, so that they can have different infills etc.
+// TODO: allow the client to slice, infill, e.g. independently
 
 // Package slice provides types and functions for slicing and compiling STL format 3D models
 // into G-code to be used for 3D printing.
@@ -50,12 +50,14 @@ func (s *STL) Slice(w io.Writer, cfg Config) error {
 	if debug {
 		for i := range s.Layers {
 			s.Layers[i] = s.sliceLayer(i, s.Min.Z+0.01+float64(i)*h, cfg)
+			s.Layers[i].genInfill(cfg)
 		}
 	} else {
 		for i := range s.Layers {
 			wg.Add(1)
 			go func(i int, z float64) {
 				s.Layers[i] = s.sliceLayer(i, z, cfg)
+				s.Layers[i].genInfill(cfg)
 				wg.Done()
 			}(i, s.Min.Z+0.01+float64(i)*h)
 		}
