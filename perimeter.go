@@ -1,8 +1,13 @@
+// TODO: inner perimeters - copy and shift perimeters inward (away from their normals),
+// and then trim where they intersect. shift+trim 2 segments at a time
+
 package slice
 
 import (
 	"container/list"
 	"math"
+
+	"sigint.ca/slice/internal/vector"
 )
 
 func (s *STL) sliceLayer(n int, z float64, cfg Config) *Layer {
@@ -96,7 +101,8 @@ func sliceFacet(f *facet, z float64) *segment {
 		return &segment{}
 	}
 
-	return &segment{from: ends[0], to: ends[1]}
+	n := vector.V2{X: f.normal.X, Y: f.normal.Y}
+	return &segment{from: ends[0], to: ends[1], normal: n}
 }
 
 // order segments into perimeters (brute force)
@@ -163,6 +169,7 @@ outer:
 			exterior:  perimeters[i],
 			interiors: make([][]*segment, 0),
 		}
+		s.min, s.max = perimeterBounds(s.exterior)
 		solids = append(solids, &s)
 	}
 	dprintf("found %d solids", len(solids))
@@ -184,17 +191,21 @@ outer:
 	}
 	if interiors.Len() != 0 {
 		wprintf("%d leftover interiors", interiors.Len())
-		for i := 0; i < interiors.Len(); i++ {
-			p := (interiors.Remove(interiors.Front()).([]*segment))
-			s := solid{
-				exterior:  p,
-				interiors: make([][]*segment, 0),
-			}
-			solids = append(solids, &s)
-		}
 	}
 
 	return solids
+}
+
+func perimeterBounds(p []*segment) (min, max Vertex2) {
+	min = Vertex2{math.Inf(+1), math.Inf(+1)}
+	max = Vertex2{math.Inf(-1), math.Inf(-1)}
+	for _, s := range p {
+		min.X = math.Min(min.X, math.Min(s.from.X, s.to.X))
+		min.Y = math.Min(min.Y, math.Min(s.from.Y, s.to.Y))
+		max.X = math.Max(max.X, math.Max(s.from.X, s.to.X))
+		max.Y = math.Max(max.Y, math.Max(s.from.Y, s.to.Y))
+	}
+	return
 }
 
 // fixOrder returns true if it was able to order the segments (i.e. they are connected)
