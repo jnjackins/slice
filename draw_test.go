@@ -1,26 +1,26 @@
 package slice
 
 import (
+	"image"
+	"image/draw"
 	"os"
 	"testing"
 
 	"sigint.ca/slice/stl"
 )
 
-func TestSlice(t *testing.T) {
-	t.Log("opening stl file")
+var Sink draw.Image
+
+func BenchmarkDraw(b *testing.B) {
 	f, err := os.Open("stl/testdata/pikachu.stl")
 	if err != nil {
-		t.Fatal(err)
+		b.Fatal(err)
 	}
-
-	t.Log("parsing stl")
 	stl, err := stl.Parse(f)
-	if err != nil {
-		t.Fatal(err)
-	}
 	f.Close()
-
+	if err != nil {
+		b.Fatal(err)
+	}
 	var cfg = Config{
 		LayerHeight:   1.0,
 		LineWidth:     1.0,
@@ -29,7 +29,12 @@ func TestSlice(t *testing.T) {
 	}
 	layers, err := Slice(stl, cfg)
 	if err != nil {
-		t.Fatal(err)
+		b.Fatal(err)
 	}
-	t.Logf("sliced %d layers", len(layers))
+
+	dst := image.NewRGBA(image.Rect(0, 0, 1000, 1000))
+	for i := 0; i < b.N; i++ {
+		layers[i%len(layers)].Draw(dst)
+	}
+	Sink = dst
 }

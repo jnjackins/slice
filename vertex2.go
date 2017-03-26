@@ -2,9 +2,8 @@ package slice
 
 import (
 	"fmt"
-	"image"
 
-	"sigint.ca/slice/internal/vector"
+	"sigint.ca/slice/vector"
 )
 
 type Vertex2 struct {
@@ -18,10 +17,6 @@ func (v1 Vertex2) touches(v2 Vertex2) bool {
 func (v1 Vertex2) distFrom(v2 Vertex2) float64 {
 	v := vector.V2(v2).Sub(vector.V2(v1))
 	return v.Length()
-}
-
-func (v Vertex2) pt() image.Point {
-	return image.Pt(round(v.X*drawfactor), round(v.Y*drawfactor))
 }
 
 func (v Vertex2) String() string {

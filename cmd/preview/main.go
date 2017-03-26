@@ -2,22 +2,17 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"image"
 	"image/draw"
 	"log"
 	"os"
-	"runtime/pprof"
-	"sync"
 	"time"
 
 	"sigint.ca/slice"
+	"sigint.ca/slice/stl"
 
 	"golang.org/x/exp/shiny/driver"
 	"golang.org/x/exp/shiny/screen"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
-	"golang.org/x/image/math/fixed"
 	"golang.org/x/mobile/event/key"
 	"golang.org/x/mobile/event/mouse"
 	"golang.org/x/mobile/event/paint"
@@ -26,7 +21,6 @@ import (
 
 var (
 	debug = flag.Bool("d", false, "debug mode")
-	prof  = flag.String("prof", "", "`path` to output CPU profiling information")
 )
 
 func main() {
@@ -42,23 +36,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *prof != "" {
-		log.Print("profile mode: will write out CPU profile after 5 seconds")
-		f, err := os.Create(*prof)
-		if err != nil {
-			log.Fatal(err)
-		}
-		err = pprof.StartCPUProfile(f)
-		if err != nil {
-			log.Fatal(err)
-		}
-		go func() {
-			time.Sleep(5 * time.Second)
-			pprof.StopCPUProfile()
-			log.Print("done writing CPU profile")
-		}()
-	}
-
 	f, err := os.Open(flag.Arg(0))
 	if err != nil {
 		log.Fatal(err)
@@ -66,93 +43,116 @@ func main() {
 
 	log.Print("parsing STL...")
 	t := time.Now()
-	stl, err := slice.Parse(f)
+	stl, err := stl.Parse(f)
 	if err != nil {
 		log.Fatal(err)
 	}
 	f.Close()
 	log.Printf("parsing took %v", time.Now().Sub(t))
 
-	if err := sliceSTL(stl); err != nil {
-		log.Fatal(err)
-	}
-	imgs, err := drawLayers(stl)
+	layers, err := sliceSTL(stl)
 	if err != nil {
 		log.Fatal(err)
 	}
-	r := imgs[0].Bounds()
-
-	log.Print("Launching UI...")
+	var (
+		layer     = 0
+		buf       screen.Buffer
+		winSize   image.Point
+		lastPaint time.Time
+		dirty     = true
+	)
 	driver.Main(func(s screen.Screen) {
-		w, err := s.NewWindow(&screen.NewWindowOptions{
-			Width:  r.Dx(),
-			Height: r.Dy(),
-		})
+		log.Print("launching window...")
+		w, err := s.NewWindow(nil)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer w.Release()
 
-		r := image.Rect(int(stl.Min.X), int(stl.Min.Y), int(stl.Max.X)+1, int(stl.Max.Y)+1)
-		winSize := r.Size()
-		var b screen.Buffer
-		defer func() {
-			if b != nil {
-				b.Release()
+		// for some reason it matters that we publish before
+		// the first size event
+		w.Publish()
+		time.Sleep(100 * time.Millisecond)
+
+		up := func() {
+			if layer < len(layers)-1 {
+				layer++
 			}
-		}()
-
-		var sz size.Event
-		var lastClick mouse.Event
-
-		var layer int
-		redraw := func() {
-			draw.Draw(b.RGBA(), b.RGBA().Bounds(), imgs[layer], imgs[layer].Bounds().Min, draw.Src)
-			drawLayerNumber(b.RGBA(), layer)
-			w.Send(paint.Event{})
+			dirty = true
+		}
+		down := func() {
+			if layer > 0 {
+				layer--
+			}
+			dirty = true
 		}
 
-		for e := range w.Events() {
+		rate := time.Duration(float64(time.Second / 60))
+		go func() {
+			for range time.NewTicker(rate).C {
+				w.Send(paint.Event{})
+			}
+		}()
+		for {
+			e := w.NextEvent()
 			switch e := e.(type) {
 			default:
-
 			case mouse.Event:
-				if e.Button == mouse.ButtonLeft {
-					if e.Y > lastClick.Y && layer < len(imgs)-1 {
-						layer++
-						redraw()
-					} else if e.Y < lastClick.Y && layer > 0 {
-						layer--
-						redraw()
-					}
-					lastClick = e
+				switch e.Button {
+				case mouse.ButtonWheelUp:
+					up()
+				case mouse.ButtonWheelDown:
+					down()
 				}
-
 			case key.Event:
-				log.Printf("key: %v", e)
-				if e.Code == key.CodeEscape {
+				switch e.Code {
+				case key.CodeEscape:
 					log.Print("quitting")
 					return
+				case key.CodeUpArrow:
+					if e.Direction == key.DirPress || e.Direction == key.DirNone {
+						up()
+					}
+				case key.CodeDownArrow:
+					if e.Direction == key.DirPress || e.Direction == key.DirNone {
+						down()
+					}
 				}
 
 			case paint.Event:
-				w.Upload(image.Point{}, b, b.Bounds(), w)
-				w.Publish()
+				if buf == nil {
+					log.Print("fatal: unexpected nil buffer")
+					os.Exit(1)
+				}
+				if e.External || (dirty && time.Since(lastPaint) > rate) {
+					l := layers[layer]
 
-			case screen.UploadedEvent:
-				// No-op.
+					draw.Draw(buf.RGBA(), buf.Bounds(), image.White, image.ZP, draw.Src)
+					l.Draw(buf.RGBA())
+
+					w.Upload(image.ZP, buf, buf.Bounds())
+					w.Publish()
+
+					dirty = false
+					lastPaint = time.Now()
+				}
 
 			case size.Event:
-				sz = e
-				if b != nil {
-					b.Release()
+				r := image.Point{e.WidthPx, e.HeightPx}
+				if r != winSize {
+					winSize = r
+					dirty = true
+
+					log.Printf("resizing to %v", winSize)
+					if buf != nil {
+						buf.Release()
+					}
+					buf, err = s.NewBuffer(winSize)
+					if err != nil {
+						log.Printf("alloc screen.Buffer: %v", err)
+						os.Exit(1)
+					}
 				}
-				winSize = image.Point{sz.WidthPx, sz.HeightPx}
-				b, err = s.NewBuffer(winSize)
-				if err != nil {
-					log.Fatal(err)
-				}
-				redraw()
 
 			case error:
 				log.Printf("error: %v", e)
@@ -161,60 +161,22 @@ func main() {
 	})
 }
 
-func sliceSTL(stl *slice.STL) error {
+func sliceSTL(stl *stl.Solid) ([]*slice.Layer, error) {
 	log.Print("slicing...")
 	t := time.Now()
 
 	var cfg = slice.Config{
-		DebugMode:     *debug,
 		LayerHeight:   0.4,
 		LineWidth:     1.0,
 		InfillSpacing: 1.0,
 		InfillAngle:   45.0,
 	}
 
-	if err := stl.Slice(nil, cfg); err != nil {
-		return err
+	layers, err := slice.Slice(stl, cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	log.Printf("slicing took %v", time.Now().Sub(t))
-	return nil
-}
-
-func drawLayers(stl *slice.STL) ([]*image.RGBA, error) {
-	log.Print("drawing layers...")
-	if len(stl.Layers) == 0 {
-		return nil, fmt.Errorf("no layers to draw")
-	}
-	t := time.Now()
-
-	imgs := make([]*image.RGBA, len(stl.Layers))
-	r := stl.Layers[0].Bounds()
-	wg := sync.WaitGroup{}
-	for i, layer := range stl.Layers {
-		wg.Add(1)
-		go func(i int, layer *slice.Layer) {
-			imgs[i] = image.NewRGBA(r)
-			draw.Draw(imgs[i], r, image.White, r.Min, draw.Src)
-			layer.Draw(imgs[i])
-			wg.Done()
-		}(i, layer)
-	}
-	wg.Wait()
-
-	if len(imgs) < 1 {
-		return nil, fmt.Errorf("no layers were drawn")
-	}
-	log.Printf("drawing took %v", time.Now().Sub(t))
-	return imgs, nil
-}
-
-func drawLayerNumber(dst draw.Image, n int) {
-	d := font.Drawer{
-		Dst:  dst,
-		Src:  image.Black,
-		Face: basicfont.Face7x13,
-		Dot:  fixed.P(2, 13),
-	}
-	d.DrawString(fmt.Sprintf("Layer %03d", n))
+	return layers, nil
 }

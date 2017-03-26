@@ -1,40 +1,46 @@
 // TODO: inner perimeters - copy and shift perimeters inward (away from their normals),
-// and then trim where they intersect. shift+trim 2 segments at a time
+// and then trim where they intersect. shift+trim 2 Segments at a time
 
 package slice
 
 import (
 	"container/list"
+	"fmt"
 	"math"
 
-	"sigint.ca/slice/internal/vector"
+	"sigint.ca/slice/stl"
+	"sigint.ca/slice/vector"
 )
 
-func (s *STL) sliceLayer(n int, z float64, cfg Config) *Layer {
+func sliceLayer(n int, z float64, s *stl.Solid, cfg Config) *Layer {
 	dprintf("slicing layer %d...", n)
-	// find the facets which interect this layer
-	facets := make([]*facet, 0)
-	for _, f := range s.facets {
-		if f.lowZ <= z && f.highZ >= z {
+	// find the facets which intersect this layer
+	facets := make([]stl.Facet, 0)
+	for _, f := range s.Facets {
+		minz, maxz := math.Inf(+1), math.Inf(-1)
+		for _, v := range f.Vertices {
+			minz = math.Min(minz, v.Z)
+			maxz = math.Max(maxz, v.Z)
+		}
+		if minz <= z && maxz >= z {
 			facets = append(facets, f)
 		}
 	}
 
 	// first, slice all the facets
-	segments := make([]*segment, 0, len(facets))
-	zs := segment{}
+	Segments := make([]*Segment, 0, len(facets))
 	for _, f := range facets {
 		s := sliceFacet(f, z)
-		if *s != zs {
-			segments = append(segments, s)
+		if s != nil {
+			Segments = append(Segments, s)
 		} else {
-			dprintf("discarding empty segment")
+			dprintf("discarding nil Segment")
 		}
 	}
-	dprintf("sliced %d segments", len(segments))
+	dprintf("sliced %d Segments", len(Segments))
 
-	if len(segments) == 0 {
-		wprintf("no segments, returning empty layer")
+	if len(Segments) == 0 {
+		wprintf("no Segments, returning empty layer")
 		return &Layer{
 			n:   n,
 			z:   z,
@@ -42,23 +48,51 @@ func (s *STL) sliceLayer(n int, z float64, cfg Config) *Layer {
 		}
 	}
 
-	perimeters := getPerimeters(segments)
-	solids := getSolids(perimeters)
-
-	return &Layer{
-		n:      n,
-		z:      z,
-		stl:    s,
-		solids: solids,
+	l := &Layer{
+		n:   n,
+		z:   z,
+		stl: s,
 	}
+
+	l.regions = getRegions(getPerimeters(Segments))
+
+	return l
 }
 
-//TODO: case where segment is one of the edges of the triangle
-func sliceFacet(f *facet, z float64) *segment {
+func sliceFacet(f stl.Facet, z float64) *Segment {
+	norm := vector.V2{X: f.Normal.X, Y: f.Normal.Y}
+
 	var ends [3]Vertex2
 	var i int
-	v := f.vertices
-	// two of these cases will usually be true
+	v := f.Vertices
+
+	// special case: one or more of the vertices lies
+	// exactly on the slice plane
+	if v[0].Z == z {
+		ends[i] = Vertex2{v[0].X, v[0].Y}
+		i++
+	}
+	if v[1].Z == z {
+		ends[i] = Vertex2{v[1].X, v[1].Y}
+		i++
+	}
+	if v[2].Z == z {
+		ends[i] = Vertex2{v[2].X, v[2].Y}
+		i++
+	}
+	if i == 1 {
+		return &Segment{From: ends[0], To: ends[0], normal: norm}
+	} else if i == 2 {
+		return &Segment{From: ends[0], To: ends[1], normal: norm}
+	} else if i == 3 {
+		dprintf("facet coincides with slice plane, ignoring")
+		// the entire facet coincides with the plane.
+		// no need to return any Segment; other facets
+		// should be sufficient to draw the perimeter
+		return nil
+	}
+
+	// two of these cases will normally be true
 	if (v[0].Z > z && v[1].Z < z) || (v[0].Z < z && v[1].Z > z) {
 		x1, x2 := v[0].X, v[1].X
 		y1, y2 := v[0].Y, v[1].Y
@@ -90,155 +124,151 @@ func sliceFacet(f *facet, z float64) *segment {
 		i++
 	}
 
-	// otherwise, a segment of the facet or the entire facet should coincide with
-	// the slice plane
-	if i == 0 {
-		//TODO
-		wprintf("no intersections at z=%f", z)
-		return &segment{}
-	} else if i != 2 {
-		wprintf("found %d intersections when finding segment at z=%f", i, z)
-		return &segment{}
+	if i != 2 {
+		panic(fmt.Sprintf("facet intersects slice plane %d times at z=%f (impossible)", i, z))
 	}
 
-	n := vector.V2{X: f.normal.X, Y: f.normal.Y}
-	return &segment{from: ends[0], to: ends[1], normal: n}
+	return &Segment{From: ends[0], To: ends[1], normal: norm}
 }
 
-// order segments into perimeters (brute force)
-func getPerimeters(segments []*segment) [][]*segment {
+// order Segments into perimeters (brute force)
+func getPerimeters(Segments []*Segment) [][]*Segment {
 	dprintf("finding perimeters...")
 
-	perimeters := make([][]*segment, 0)
-	var current []*segment
+	perimeters := make([][]*Segment, 0)
+	var current []*Segment
 
 outer:
 	for {
-		if len(segments) == 0 {
+		if len(Segments) == 0 {
 			if current != nil {
 				perimeters = append(perimeters, current)
 			}
 			break
 		}
 		if current == nil {
-			current = make([]*segment, 1)
-			current[0] = segments[0]
-			segments = segments[1:]
+			current = make([]*Segment, 1)
+			current[0] = Segments[0]
+			Segments = Segments[1:]
 		}
 		last := len(current) - 1
-		for i := 0; i < len(segments); i++ {
-			if fixOrder(current[last], segments[i]) {
-				current = append(current, segments[i])
-				segments = append(segments[:i], segments[i+1:]...) // delete segments[i]
+		for i := 0; i < len(Segments); i++ {
+			if fixOrder(current[last], Segments[i]) {
+				current = append(current, Segments[i])
+				Segments = append(Segments[:i], Segments[i+1:]...) // delete Segments[i]
 				continue outer
 			}
 		}
-		dprintf("found %d segment perimeter", len(current))
+		dprintf("found %d Segment perimeter", len(current))
 		perimeters = append(perimeters, current)
 		current = nil
 	}
-	if len(segments) != 0 {
-		wprintf("getPerimeters: segments left over after ordering: %d", len(segments))
+	if len(Segments) != 0 {
+		wprintf("getPerimeters: Segments left over after ordering: %d", len(Segments))
 	}
 
 	return perimeters
 }
 
-func getSolids(perimeters [][]*segment) []*solid {
-	dprintf("grouping solids...")
+func getRegions(perimeters [][]*Segment) []*Region {
+	dprintf("grouping regions...")
 
-	solids := make([]*solid, 0)
-	interiors := list.New()
+	regions := make([]*Region, 0)
+	Interiors := list.New()
 
-	// first, identify which perimeters our exterior and which are interior.
-	// store exterior perimeters in new solids.
+	// first, identify which perimeters our Exteriors and which are interior.
+	// store Exteriors perimeters in new solids.
 outer:
 	for i := 0; i < len(perimeters); i++ {
 		for j := 0; j < len(perimeters); j++ {
 			if i == j {
 				continue
 			}
-			if contains(perimeters[j], perimeters[i][0].from) {
+			if contains(perimeters[j], perimeters[i][0].From) {
 				// perimeter i is not the outer perimeter of a solid
-				interiors.PushBack(perimeters[i])
+				Interiors.PushBack(perimeters[i])
 				continue outer
 			}
 		}
-		// perimeter i is the outer perimeter of a solid
-		s := solid{
-			exterior:  perimeters[i],
-			interiors: make([][]*segment, 0),
+		// perimeter i is the outer perimeter of a Region
+		r := Region{
+			Exterior:  perimeters[i],
+			Interiors: make([][]*Segment, 0),
 		}
-		s.min, s.max = perimeterBounds(s.exterior)
-		solids = append(solids, &s)
+		r.min, r.max = perimeterBounds(r.Exterior)
+		regions = append(regions, &r)
 	}
-	dprintf("found %d solids", len(solids))
+	dprintf("found %d regions", len(regions))
 
-	// sort interiors into their solids
-	for _, s := range solids {
-		p := interiors.Front()
+	// sort Interiors into their solids
+	for _, r := range regions {
+		p := Interiors.Front()
 		for p != nil {
-			v := p.Value.([]*segment)
-			if contains(s.exterior, v[0].from) {
-				s.interiors = append(s.interiors, v)
+			v := p.Value.([]*Segment)
+			if contains(r.Exterior, v[0].From) {
+				r.Interiors = append(r.Interiors, v)
 				next := p.Next()
-				interiors.Remove(p)
+				Interiors.Remove(p)
 				p = next
 			} else {
 				p = p.Next()
 			}
 		}
 	}
-	if interiors.Len() != 0 {
-		wprintf("%d leftover interiors", interiors.Len())
+	if Interiors.Len() != 0 {
+		wprintf("%d leftover Interiors", Interiors.Len())
 	}
 
-	return solids
+	return regions
 }
 
-func perimeterBounds(p []*segment) (min, max Vertex2) {
+func perimeterBounds(p []*Segment) (min, max Vertex2) {
 	min = Vertex2{math.Inf(+1), math.Inf(+1)}
 	max = Vertex2{math.Inf(-1), math.Inf(-1)}
 	for _, s := range p {
-		min.X = math.Min(min.X, math.Min(s.from.X, s.to.X))
-		min.Y = math.Min(min.Y, math.Min(s.from.Y, s.to.Y))
-		max.X = math.Max(max.X, math.Max(s.from.X, s.to.X))
-		max.Y = math.Max(max.Y, math.Max(s.from.Y, s.to.Y))
+		min.X = math.Min(min.X, math.Min(s.From.X, s.To.X))
+		min.Y = math.Min(min.Y, math.Min(s.From.Y, s.To.Y))
+		max.X = math.Max(max.X, math.Max(s.From.X, s.To.X))
+		max.Y = math.Max(max.Y, math.Max(s.From.Y, s.To.Y))
 	}
 	return
 }
 
-// fixOrder returns true if it was able to order the segments (i.e. they are connected)
-func fixOrder(first, second *segment) bool {
-	if first.to.touches(second.from) {
+// fixOrder returns true if it was able to order the Segments (i.e. they are connected)
+func fixOrder(first, second *Segment) bool {
+	if first.To.touches(second.From) {
 		// perfect
 		return true
-	} else if first.to.touches(second.to) {
+	} else if first.To.touches(second.To) {
 		// second is backwards
-		second.from, second.to = second.to, second.from
+		second.From, second.To = second.To, second.From
 		return true
-	} else if first.from.touches(second.from) {
+	} else if first.From.touches(second.From) {
 		// first is backwards
-		first.from, first.to = first.to, first.from
+		first.From, first.To = first.To, first.From
 		return true
-	} else if first.from.touches(second.to) {
+	} else if first.From.touches(second.To) {
 		// both are backwards
-		first.from, first.to = first.to, first.from
-		second.from, second.to = second.to, second.from
+		first.From, first.To = first.To, first.From
+		second.From, second.To = second.To, second.From
 		return true
 	}
 	return false
 }
 
 // contains returns true if v is inside perimeter, or false if v is outside perimeter
-func contains(perimeter []*segment, v Vertex2) bool {
-	// edge is a vertex outside of perimeter, with the same y value as v
+func contains(perimeter []*Segment, v Vertex2) bool {
+	// draw a line from outside the perimeter to v. if the line
+	// has an odd number of intersections with the perimeter, v
+	// is inside the perimeter. if there are an odd number of
+	// intersections, v lies outside the perimeter.
+
 	edge := Vertex2{X: -math.MaxFloat64, Y: v.Y}
 
-	ray := &segment{from: edge, to: v}
+	ray := &Segment{From: edge, To: v}
 	intersections, _ := ray.getIntersections(perimeter)
 
-	// if ray crosses an odd number of segments before reaching v, then v is inside
+	// if ray crosses an odd number of Segments before reaching v, then v is inside
 	// perimeter. otherwise, it is outside perimeter.
 	if len(intersections)%2 == 0 {
 		return false

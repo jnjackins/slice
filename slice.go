@@ -1,14 +1,15 @@
 // TODO: allow the client to slice, infill, e.g. independently
 
-// Package slice provides types and functions for slicing and compiling STL format 3D models
+// package slice provides types and functions for slicing and compiling STL format 3D models
 // into G-code to be used for 3D printing.
-package slice // import "sigint.ca/slice"
+package slice
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sync"
+
+	"sigint.ca/slice/stl"
 )
 
 var debug bool
@@ -34,46 +35,34 @@ func wprintf(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "WARNING: "+format+"\n", args...)
 }
 
-// Slice divides parsed STL data into layers and optionally compiles G-code
-// for each layer. The G-code is written to w, if w is not nil.
-// After Slice returns, the resulting layers can be accessed as the STL's
-// Layers variable.
-func (s *STL) Slice(w io.Writer, cfg Config) error {
+// Slice slices and stl.Solid into layers.
+func Slice(s *stl.Solid, cfg Config) ([]*Layer, error) {
 	debug = cfg.DebugMode
 
-	var wg sync.WaitGroup
-	nLayers := int(0.5 + (s.Max.Z-s.Min.Z)/cfg.LayerHeight)
-	s.Layers = make([]*Layer, nLayers)
+	min, max := s.Bounds()
+	nLayers := int(0.5 + (max.Z-min.Z)/cfg.LayerHeight)
+	layers := make([]*Layer, nLayers)
 	h := cfg.LayerHeight
 
 	// slice in parallel if not in debug mode
 	if debug {
-		for i := range s.Layers {
-			s.Layers[i] = s.sliceLayer(i, s.Min.Z+0.01+float64(i)*h, cfg)
-			s.Layers[i].genInfill(cfg)
+		for i := range layers {
+			layers[i] = sliceLayer(i, min.Z+0.01+float64(i)*h, s, cfg)
+			//layers[i].genInfill(cfg)
 		}
 	} else {
-		for i := range s.Layers {
+		var wg sync.WaitGroup
+		for i := range layers {
 			wg.Add(1)
 			go func(i int, z float64) {
-				s.Layers[i] = s.sliceLayer(i, z, cfg)
-				s.Layers[i].genInfill(cfg)
+				layers[i] = sliceLayer(i, z, s, cfg)
+				//layers[i].genInfill(cfg)
 				wg.Done()
-			}(i, s.Min.Z+0.01+float64(i)*h)
+			}(i, min.Z+0.01+float64(i)*h)
 		}
 		wg.Wait()
 	}
 
 	dprintf("sliced %d layers", nLayers)
-
-	if w == nil {
-		return nil
-	}
-	for _, l := range s.Layers {
-		_, err := w.Write(l.Gcode())
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return layers, nil
 }

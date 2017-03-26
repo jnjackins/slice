@@ -13,50 +13,52 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-const drawfactor = 10
-
 var (
-	perimeterColor = color.Black
-	infillColor    = color.RGBA{R: 0xFF, A: 0xFF}
-	debugColor     = color.RGBA{G: 0xFF, A: 0xFF}
+	PerimeterColor = color.Black
+	InfillColor    = color.RGBA{R: 0xFF, A: 0xFF}
 )
 
-// Bounds returns an image.Rectangle for use with Draw.
-func (l *Layer) Bounds() image.Rectangle {
-	x1, y1 := int(l.stl.Min.X*drawfactor-20), int(l.stl.Min.Y*drawfactor-20)
-	x2, y2 := int(l.stl.Max.X*drawfactor+20.5), int(l.stl.Max.Y*drawfactor+20.5)
-	return image.Rect(x1, y1, x2, y2)
-}
-
-// Draw draws an image representation of the layer onto dst. Use Bounds to find
-// the minimum size that dst should be to contain the entire image.
 func (l *Layer) Draw(dst draw.Image) {
-	for i, solid := range l.solids {
-		drawPerimeterNumber(dst, solid.exterior[0].from.pt(), fmt.Sprintf("%d", i))
-		for _, s := range solid.exterior {
-			drawLine(dst, s.from, s.to, perimeterColor)
+	var scaleFactor float64
+	min, max := l.stl.Bounds()
+	min2 := Vertex2{X: min.X, Y: min.Y}
+	srcDx := max.X - min.X
+	srcDy := max.Y - min.Y
+	r := dst.Bounds()
+	dstDx := float64(r.Dx())
+	dstDy := float64(r.Dy())
+	if dstDx-srcDx < dstDy-srcDy {
+		scaleFactor = dstDx / srcDx
+	} else {
+		scaleFactor = dstDy / srcDy
+	}
+
+	for i, region := range l.Regions() {
+		drawPerimeterNumber(dst, region.Exterior[0].From, min2, fmt.Sprintf("%d", i), scaleFactor)
+		for _, s := range region.Exterior {
+			drawLine(dst, s.From, s.To, min2, PerimeterColor, scaleFactor)
 		}
-		for j, p := range solid.interiors {
-			drawPerimeterNumber(dst, p[0].from.pt(), fmt.Sprintf("%d-%d", i, j))
+		for j, p := range region.Interiors {
+			drawPerimeterNumber(dst, p[0].From, min2, fmt.Sprintf("%d-%d", i, j), scaleFactor)
 			for _, s := range p {
-				drawLine(dst, s.from, s.to, perimeterColor)
+				drawLine(dst, s.From, s.To, min2, PerimeterColor, scaleFactor)
 			}
 		}
-		for _, s := range solid.infill {
-			drawLine(dst, s.from, s.to, infillColor)
-		}
-		for _, s := range solid.debug {
-			drawLine(dst, s.from, s.to, debugColor)
+		for _, s := range region.Infill {
+			drawLine(dst, s.From, s.To, min2, InfillColor, scaleFactor)
 		}
 	}
 }
 
-func drawLine(dst draw.Image, p1, p2 Vertex2, c color.Color) {
-	primitive.Line(dst, c, p1.pt(), p2.pt())
+func drawLine(dst draw.Image, p1, p2, min Vertex2, c color.Color, scaleFactor float64) {
+	px1 := v2pixel(p1, scaleFactor).Sub(v2pixel(min, scaleFactor))
+	px2 := v2pixel(p2, scaleFactor).Sub(v2pixel(min, scaleFactor))
+	primitive.Line(dst, c, px1, px2)
 }
 
-func drawPerimeterNumber(dst draw.Image, pt image.Point, number string) {
-	dot := fixed.P(pt.X, pt.Y)
+func drawPerimeterNumber(dst draw.Image, pt, min Vertex2, number string, scaleFactor float64) {
+	px := v2pixel(pt, scaleFactor).Sub(v2pixel(min, scaleFactor))
+	dot := fixed.P(px.X, px.Y)
 	d := font.Drawer{
 		Dst:  dst,
 		Src:  image.NewUniform(color.RGBA{B: 0xFF, A: 0xFF}),
@@ -64,4 +66,18 @@ func drawPerimeterNumber(dst draw.Image, pt image.Point, number string) {
 		Dot:  dot,
 	}
 	d.DrawString(number)
+}
+
+func v2pixel(v Vertex2, scaleFactor float64) image.Point {
+	return image.Pt(round(v.X*scaleFactor), round(v.Y*scaleFactor))
+}
+
+func round(v float64) int {
+	if v > 0.0 {
+		return int(v + 0.5)
+	} else if v < 0.0 {
+		return int(v - 0.5)
+	} else {
+		return 0
+	}
 }
