@@ -1,5 +1,5 @@
 // TODO: inner perimeters - copy and shift perimeters inward (away from their normals),
-// and then trim where they intersect. shift+trim 2 Segments at a time
+// and then trim where they intersect. shift+trim 2 segments at a time
 
 package slice
 
@@ -28,19 +28,21 @@ func sliceLayer(n int, z float64, s *stl.Solid, cfg Config) *Layer {
 	}
 
 	// first, slice all the facets
-	Segments := make([]*Segment, 0, len(facets))
+	segments := make([]*Segment, 0, len(facets))
 	for _, f := range facets {
 		s := sliceFacet(f, z)
-		if s != nil {
-			Segments = append(Segments, s)
-		} else {
+		if s == nil {
 			dprintf("discarding nil Segment")
+		} else if s.From.touches(s.To) {
+			dprintf("discarding tiny Segment")
+		} else {
+			segments = append(segments, s)
 		}
 	}
-	dprintf("sliced %d Segments", len(Segments))
+	dprintf("sliced %d segments", len(segments))
 
-	if len(Segments) == 0 {
-		wprintf("no Segments, returning empty layer")
+	if len(segments) == 0 {
+		wprintf("no segments, returning empty layer")
 		return &Layer{
 			n:   n,
 			z:   z,
@@ -54,13 +56,14 @@ func sliceLayer(n int, z float64, s *stl.Solid, cfg Config) *Layer {
 		stl: s,
 	}
 
-	l.regions = getRegions(getPerimeters(Segments))
+	l.regions = getRegions(getPerimeters(segments))
 
 	return l
 }
 
 func sliceFacet(f stl.Facet, z float64) *Segment {
 	norm := vector.V2{X: f.Normal.X, Y: f.Normal.Y}
+	norm = norm.Normalize()
 
 	var ends [3]Vertex2
 	var i int
@@ -81,9 +84,9 @@ func sliceFacet(f stl.Facet, z float64) *Segment {
 		i++
 	}
 	if i == 1 {
-		return &Segment{From: ends[0], To: ends[0], normal: norm}
+		return &Segment{From: ends[0], To: ends[0], Normal: norm}
 	} else if i == 2 {
-		return &Segment{From: ends[0], To: ends[1], normal: norm}
+		return &Segment{From: ends[0], To: ends[1], Normal: norm}
 	} else if i == 3 {
 		dprintf("facet coincides with slice plane, ignoring")
 		// the entire facet coincides with the plane.
@@ -128,11 +131,11 @@ func sliceFacet(f stl.Facet, z float64) *Segment {
 		panic(fmt.Sprintf("facet intersects slice plane %d times at z=%f (impossible)", i, z))
 	}
 
-	return &Segment{From: ends[0], To: ends[1], normal: norm}
+	return &Segment{From: ends[0], To: ends[1], Normal: norm}
 }
 
-// order Segments into perimeters (brute force)
-func getPerimeters(Segments []*Segment) [][]*Segment {
+// order segments into perimeters (brute force)
+func getPerimeters(segments []*Segment) [][]*Segment {
 	dprintf("finding perimeters...")
 
 	perimeters := make([][]*Segment, 0)
@@ -140,7 +143,7 @@ func getPerimeters(Segments []*Segment) [][]*Segment {
 
 outer:
 	for {
-		if len(Segments) == 0 {
+		if len(segments) == 0 {
 			if current != nil {
 				perimeters = append(perimeters, current)
 			}
@@ -148,14 +151,14 @@ outer:
 		}
 		if current == nil {
 			current = make([]*Segment, 1)
-			current[0] = Segments[0]
-			Segments = Segments[1:]
+			current[0] = segments[0]
+			segments = segments[1:]
 		}
 		last := len(current) - 1
-		for i := 0; i < len(Segments); i++ {
-			if fixOrder(current[last], Segments[i]) {
-				current = append(current, Segments[i])
-				Segments = append(Segments[:i], Segments[i+1:]...) // delete Segments[i]
+		for i := 0; i < len(segments); i++ {
+			if fixOrder(current[last], segments[i]) {
+				current = append(current, segments[i])
+				segments = append(segments[:i], segments[i+1:]...) // delete segments[i]
 				continue outer
 			}
 		}
@@ -163,8 +166,8 @@ outer:
 		perimeters = append(perimeters, current)
 		current = nil
 	}
-	if len(Segments) != 0 {
-		wprintf("getPerimeters: Segments left over after ordering: %d", len(Segments))
+	if len(segments) != 0 {
+		wprintf("getPerimeters: segments left over after ordering: %d", len(segments))
 	}
 
 	return perimeters
@@ -234,7 +237,7 @@ func perimeterBounds(p []*Segment) (min, max Vertex2) {
 	return
 }
 
-// fixOrder returns true if it was able to order the Segments (i.e. they are connected)
+// fixOrder returns true if it was able to order the segments (i.e. they are connected)
 func fixOrder(first, second *Segment) bool {
 	if first.To.touches(second.From) {
 		// perfect
@@ -268,7 +271,7 @@ func contains(perimeter []*Segment, v Vertex2) bool {
 	ray := &Segment{From: edge, To: v}
 	intersections, _ := ray.getIntersections(perimeter)
 
-	// if ray crosses an odd number of Segments before reaching v, then v is inside
+	// if ray crosses an odd number of segments before reaching v, then v is inside
 	// perimeter. otherwise, it is outside perimeter.
 	if len(intersections)%2 == 0 {
 		return false

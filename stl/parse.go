@@ -53,5 +53,5 @@ func (f *Facet) calculateNormal() {
 		Y: (v.Z * w.X) - (v.X * w.Z),
 		Z: (v.X * w.Y) - (v.Y * w.X),
 	}
-	f.Normal = n.Norm()
+	f.Normal = n.Normalize()
 }

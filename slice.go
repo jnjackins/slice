@@ -1,6 +1,6 @@
 // TODO: allow the client to slice, infill, e.g. independently
 
-// package slice provides types and functions for slicing and compiling STL format 3D models
+// Package slice provides types and functions for slicing and compiling STL format 3D models
 // into G-code to be used for 3D printing.
 package slice
 
@@ -21,8 +21,7 @@ type Config struct {
 	LayerHeight float64
 	LineWidth   float64
 
-	InfillSpacing float64
-	InfillAngle   float64 // in degrees
+	Infill Infiller
 }
 
 func dprintf(format string, args ...interface{}) {
@@ -48,7 +47,9 @@ func Slice(s *stl.Solid, cfg Config) ([]*Layer, error) {
 	if debug {
 		for i := range layers {
 			layers[i] = sliceLayer(i, min.Z+0.01+float64(i)*h, s, cfg)
-			//layers[i].genInfill(cfg)
+			for _, r := range layers[i].regions {
+				cfg.Infill.Fill(r)
+			}
 		}
 	} else {
 		var wg sync.WaitGroup

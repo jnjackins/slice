@@ -11,7 +11,7 @@ type Vertex2 struct {
 }
 
 func (v1 Vertex2) touches(v2 Vertex2) bool {
-	return approxEquals(v1.X, v2.X, 0.000001) && approxEquals(v1.Y, v2.Y, 0.000001)
+	return approxEquals(v1.X, v2.X, 0.005) && approxEquals(v1.Y, v2.Y, 0.005)
 }
 
 func (v1 Vertex2) distFrom(v2 Vertex2) float64 {

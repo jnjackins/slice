@@ -14,7 +14,7 @@ func TestParseExact(t *testing.T) {
 		facets, min, max string
 	}{
 		{
-			path: "testdata/cube20_ascii.stl",
+			path: "../testdata/cube20_ascii.stl",
 			facets: `[n=(-0.0, 0.0, -1.0) v=[(20.0, 0.0, 0.0) (0.0, -20.0, 0.0) (0.0, 0.0, 0.0)]
  n=(0.0, 0.0, -1.0) v=[(0.0, -20.0, 0.0) (20.0, 0.0, 0.0) (20.0, -20.0, 0.0)]
  n=(0.0, -1.0, -0.0) v=[(20.0, -20.0, 20.0) (0.0, -20.0, 0.0) (20.0, -20.0, 0.0)]
@@ -33,7 +33,7 @@ func TestParseExact(t *testing.T) {
 		},
 
 		{
-			path: "testdata/cube40_binary.stl",
+			path: "../testdata/cube40_binary.stl",
 			facets: `[n=(0.0, -0.0, -1.0) v=[(20.0, 20.0, 0.0) (20.0, -20.0, 0.0) (-20.0, -20.0, 0.0)]
  n=(-0.0, 0.0, -1.0) v=[(20.0, 20.0, 0.0) (-20.0, -20.0, 0.0) (-20.0, 20.0, 0.0)]
  n=(0.0, 0.0, 1.0) v=[(20.0, 20.0, 40.0) (-20.0, 20.0, 40.0) (-20.0, -20.0, 40.0)]
@@ -90,14 +90,14 @@ func TestParseCount(t *testing.T) {
 		min, max string
 	}{
 		{
-			path:    "testdata/pikachu.stl",
+			path:    "../testdata/pikachu.stl",
 			nfacets: 412,
 			min:     "(-10.2, -11.2, -0.0)",
 			max:     "(20.2, 36.0, 59.0)",
 		},
 
 		{
-			path:    "testdata/3DBenchy.stl",
+			path:    "../testdata/3DBenchy.stl",
 			nfacets: 225706,
 			min:     "(-29.2, -15.5, 0.0)",
 			max:     "(30.8, 15.5, 48.0)",
@@ -135,10 +135,31 @@ func TestParseCount(t *testing.T) {
 	}
 }
 
+func TestNormals(t *testing.T) {
+	f, err := os.Open("../testdata/pikachu.stl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	s, err := Parse(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, f := range s.Facets {
+		l := f.Normal.Length()
+		if l < 0.9999 || l > 1.0001 {
+			t.Fatalf("bad normal length: want 1, got %f", l)
+		}
+	}
+	f.Close()
+}
+
 var Sink *Solid
 
 func BenchmarkParseAsciiCube(b *testing.B) {
-	buf, err := ioutil.ReadFile("testdata/cube20_ascii.stl")
+	buf, err := ioutil.ReadFile("../testdata/cube20_ascii.stl")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -154,7 +175,7 @@ func BenchmarkParseAsciiCube(b *testing.B) {
 }
 
 func BenchmarkParsePikachu(b *testing.B) {
-	buf, err := ioutil.ReadFile("testdata/Pikachu.stl")
+	buf, err := ioutil.ReadFile("../testdata/Pikachu.stl")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -170,7 +191,7 @@ func BenchmarkParsePikachu(b *testing.B) {
 }
 
 func BenchmarkParse3DBenchy(b *testing.B) {
-	buf, err := ioutil.ReadFile("testdata/3DBenchy.stl")
+	buf, err := ioutil.ReadFile("../testdata/3DBenchy.stl")
 	if err != nil {
 		b.Fatal(err)
 	}

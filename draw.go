@@ -14,49 +14,64 @@ import (
 )
 
 var (
-	PerimeterColor = color.Black
-	InfillColor    = color.RGBA{R: 0xFF, A: 0xFF}
+	perimeterColor = color.Black
+	infillColor    = color.RGBA{R: 0xFF, A: 0xFF}
+	normalColor    = color.RGBA{G: 0xFF, A: 0xFF}
 )
 
 func (l *Layer) Draw(dst draw.Image) {
-	var scaleFactor float64
+	// scale to window size
 	min, max := l.stl.Bounds()
 	min2 := Vertex2{X: min.X, Y: min.Y}
+	max2 := Vertex2{X: max.X, Y: max.Y}
 	srcDx := max.X - min.X
 	srcDy := max.Y - min.Y
-	r := dst.Bounds()
-	dstDx := float64(r.Dx())
-	dstDy := float64(r.Dy())
-	if dstDx-srcDx < dstDy-srcDy {
+	dr := dst.Bounds()
+	dstDx := float64(dr.Dx())
+	dstDy := float64(dr.Dy())
+	var scaleFactor float64
+	if dstDx/srcDx < dstDy/srcDy {
 		scaleFactor = dstDx / srcDx
 	} else {
 		scaleFactor = dstDy / srcDy
 	}
 
-	for i, region := range l.Regions() {
-		drawPerimeterNumber(dst, region.Exterior[0].From, min2, fmt.Sprintf("%d", i), scaleFactor)
-		for _, s := range region.Exterior {
-			drawLine(dst, s.From, s.To, min2, PerimeterColor, scaleFactor)
+	// show stl bounds
+	r := image.Rect(0, 0, int((max2.X-min2.X)*scaleFactor), int((max2.Y-min2.Y)*scaleFactor))
+	draw.Draw(dst, r, image.White, image.ZP, draw.Src)
+
+	// draw the layer
+	for _, region := range l.Regions() {
+		for i, s := range region.Exterior {
+			drawNumber(dst, s.From, min2, fmt.Sprintf("%d", i), scaleFactor)
+			drawSegment(dst, s, min2, perimeterColor, scaleFactor)
 		}
-		for j, p := range region.Interiors {
-			drawPerimeterNumber(dst, p[0].From, min2, fmt.Sprintf("%d-%d", i, j), scaleFactor)
+		for _, p := range region.Interiors {
 			for _, s := range p {
-				drawLine(dst, s.From, s.To, min2, PerimeterColor, scaleFactor)
+				drawSegment(dst, s, min2, perimeterColor, scaleFactor)
 			}
 		}
 		for _, s := range region.Infill {
-			drawLine(dst, s.From, s.To, min2, InfillColor, scaleFactor)
+			drawSegment(dst, s, min2, infillColor, scaleFactor)
 		}
 	}
 }
 
-func drawLine(dst draw.Image, p1, p2, min Vertex2, c color.Color, scaleFactor float64) {
-	px1 := v2pixel(p1, scaleFactor).Sub(v2pixel(min, scaleFactor))
-	px2 := v2pixel(p2, scaleFactor).Sub(v2pixel(min, scaleFactor))
+func drawSegment(dst draw.Image, s *Segment, min Vertex2, c color.Color, scaleFactor float64) {
+	px1 := v2pixel(s.From, scaleFactor).Sub(v2pixel(min, scaleFactor))
+	px2 := v2pixel(s.To, scaleFactor).Sub(v2pixel(min, scaleFactor))
+	primitive.Circle(dst, c, px1, 2)
+	primitive.Circle(dst, c, px1, 2)
 	primitive.Line(dst, c, px1, px2)
+
+	// draw normal
+	n1 := image.Pt((px1.X+px2.X)/2, (px1.Y+px2.Y)/2)
+	normal := image.Pt(int(s.Normal.X*scaleFactor*0.1), int(s.Normal.Y*scaleFactor*0.1))
+	n2 := n1.Add(normal)
+	primitive.Line(dst, normalColor, n1, n2)
 }
 
-func drawPerimeterNumber(dst draw.Image, pt, min Vertex2, number string, scaleFactor float64) {
+func drawNumber(dst draw.Image, pt, min Vertex2, number string, scaleFactor float64) {
 	px := v2pixel(pt, scaleFactor).Sub(v2pixel(min, scaleFactor))
 	dot := fixed.P(px.X, px.Y)
 	d := font.Drawer{

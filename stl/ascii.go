@@ -23,7 +23,7 @@ func (p asciiReader) readFacets() ([]Facet, error) {
 
 		f, err := p.readFacet()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error decoding ascii STL: %v", err)
 		}
 		facets = append(facets, f)
 
@@ -32,7 +32,7 @@ func (p asciiReader) readFacets() ([]Facet, error) {
 
 		nextWord, err := p.r.Peek(8)
 		if err != nil {
-			return nil, fmt.Errorf("error decoding STL: %v", err)
+			return nil, fmt.Errorf("error decoding ascii STL: %v", err)
 		}
 		if string(nextWord) == "endsolid" {
 			break
@@ -47,7 +47,7 @@ func (p asciiReader) readFacet() (Facet, error) {
 	for vi := range vertices {
 		v, err := p.readVertex()
 		if err != nil {
-			return Facet{}, fmt.Errorf("error decoding STL: %v", err)
+			return Facet{}, fmt.Errorf("read facet: %v", err)
 		}
 		vertices[vi] = v
 	}
@@ -59,16 +59,14 @@ func (p asciiReader) readFacet() (Facet, error) {
 func (p asciiReader) readVertex() (vector.V3, error) {
 	var x, z, y float32
 
-	// sometimes ASCII STLs are indented, sometimes they aren't. strip leading whitespace
-	// if it exists.
 	s, _, err := p.r.ReadLine()
 	if err != nil {
-		return vector.V3{}, err
+		return vector.V3{}, fmt.Errorf("read vertex: %v", err)
 	}
-	bytes.TrimSpace(s)
+	s = bytes.TrimSpace(s)
 
 	if _, err := fmt.Sscanf(string(s), "vertex %f %f %f\n", &x, &y, &z); err != nil {
-		return vector.V3{}, err
+		return vector.V3{}, fmt.Errorf("read vertex: %q: %v", s, err)
 	}
 	v := vector.V3{X: float64(x), Y: float64(y), Z: float64(z)}
 	return v, nil

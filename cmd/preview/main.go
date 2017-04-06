@@ -23,6 +23,8 @@ var (
 	debug = flag.Bool("d", false, "debug mode")
 )
 
+var bgcol = image.Black
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("preview: ")
@@ -127,7 +129,7 @@ func main() {
 				if e.External || (dirty && time.Since(lastPaint) > rate) {
 					l := layers[layer]
 
-					draw.Draw(buf.RGBA(), buf.Bounds(), image.White, image.ZP, draw.Src)
+					draw.Draw(buf.RGBA(), buf.Bounds(), bgcol, image.ZP, draw.Src)
 					l.Draw(buf.RGBA())
 
 					w.Upload(image.ZP, buf, buf.Bounds())
@@ -143,7 +145,6 @@ func main() {
 					winSize = r
 					dirty = true
 
-					log.Printf("resizing to %v", winSize)
 					if buf != nil {
 						buf.Release()
 					}
@@ -166,10 +167,10 @@ func sliceSTL(stl *stl.Solid) ([]*slice.Layer, error) {
 	t := time.Now()
 
 	var cfg = slice.Config{
-		LayerHeight:   0.4,
-		LineWidth:     1.0,
-		InfillSpacing: 1.0,
-		InfillAngle:   45.0,
+		DebugMode:   true,
+		LayerHeight: 0.4,
+		LineWidth:   1.0,
+		Infill:      &slice.Concentric{Spacing: 0.2},
 	}
 
 	layers, err := slice.Slice(stl, cfg)

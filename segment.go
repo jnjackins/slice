@@ -13,13 +13,18 @@ var errOutOfBounds = fmt.Errorf("line out of bounds")
 // Segments can represent both perimeter and infill lines
 type Segment struct {
 	From, To Vertex2   // ordered so that gcode movements are from "from" to "to"
-	normal   vector.V2 // points to the inside of the solid
+	Normal   vector.V2 // points to the inside of the solid
 	line     *line     // hold on to the slope and y-intercept of the line once calculated
-	visited  bool      // used to keep track of regions that still need to be infilled
 }
 
 func (s *Segment) String() string {
 	return fmt.Sprintf("%v-%v", s.From, s.To)
+}
+
+func (s *Segment) Length() float64 {
+	dx := s.To.X - s.From.Y
+	dy := s.To.Y - s.From.Y
+	return math.Sqrt(dx*dx + dy*dy)
 }
 
 func (s *Segment) getLine() *line {
@@ -38,12 +43,60 @@ func (s *Segment) getLine() *line {
 	return s.line
 }
 
-func (s *Segment) shiftBy(v vector.V2) *Segment {
-	dprintf("shifting by %v", v)
+func (s *Segment) ShiftBy(v vector.V2) *Segment {
 	s.From = Vertex2(vector.V2(s.From).Add(v))
 	s.To = Vertex2(vector.V2(s.To).Add(v))
 	s.line = nil
 	return s
+}
+
+func (s *Segment) intersect(ss *Segment) (Vertex2, bool) {
+	if s.From.touches(ss.From) ||
+		s.From.touches(ss.To) ||
+		s.To.touches(ss.From) ||
+		s.To.touches(ss.To) {
+		return Vertex2{}, false
+	}
+
+	// eliminate cases where the Segments do not have overlapping X coordinates
+	if math.Max(s.From.X, s.To.X) < math.Min(ss.From.X, ss.To.X) {
+		return Vertex2{}, false
+	}
+	if math.Min(s.From.X, s.To.X) > math.Max(ss.From.X, ss.To.X) {
+		return Vertex2{}, false
+	}
+
+	l1, l2 := s.getLine(), ss.getLine()
+	if approxEquals(l1.m, l2.m, 0.000001) {
+		// l1 and l2 are parallel
+		return Vertex2{}, false
+	}
+
+	// calculate point of intersection
+	// TODO: duplicate of line.intersect?
+	var v Vertex2
+	if math.IsInf(l1.m, 0) {
+		// ray is vertical
+		v.X = s.From.X
+		v.Y = l2.m*v.X + l2.b
+		if !inRange(v.Y, ss.From.Y, ss.To.Y) {
+			return Vertex2{}, false
+		}
+	} else if math.IsInf(l2.m, 0) {
+		// s is vertical
+		v.X = ss.From.X
+		v.Y = l1.m*v.X + l1.b
+		if !inRange(v.Y, ss.From.Y, ss.To.Y) {
+			return Vertex2{}, false
+		}
+	} else {
+		v.X = (l2.b - l1.b) / (l1.m - l2.m)
+		v.Y = l1.m*v.X + l1.b // doesn't matter which line we use in this case
+		if !inRange(v.X, ss.From.X, ss.To.X) {
+			return Vertex2{}, false
+		}
+	}
+	return v, true
 }
 
 // getIntersections returns a list of Segments in target that intersect with ray, as well
@@ -52,42 +105,9 @@ func (ray *Segment) getIntersections(target []*Segment) ([]*Segment, []Vertex2) 
 	intersecting := make([]*Segment, 0)
 	points := make([]Vertex2, 0)
 	for _, s := range target {
-		// eliminate cases where the Segments do not have overlapping X coordinates
-		if math.Max(ray.From.X, ray.To.X) < math.Min(s.From.X, s.To.X) {
+		v, ok := ray.intersect(s)
+		if !ok {
 			continue
-		}
-		if math.Min(ray.From.X, ray.To.X) > math.Max(s.From.X, s.To.X) {
-			continue
-		}
-
-		l1, l2 := ray.getLine(), s.getLine()
-		if approxEquals(l1.m, l2.m, 0.000001) {
-			// l1 and l2 are parallel
-			continue
-		}
-
-		// calculate point of intersection
-		var v Vertex2
-		if math.IsInf(l1.m, 0) {
-			// ray is vertical
-			v.X = ray.From.X
-			v.Y = l2.m*v.X + l2.b
-			if !inRange(v.Y, s.From.Y, s.To.Y) {
-				continue
-			}
-		} else if math.IsInf(l2.m, 0) {
-			// s is vertical
-			v.X = s.From.X
-			v.Y = l1.m*v.X + l1.b
-			if !inRange(v.Y, s.From.Y, s.To.Y) {
-				continue
-			}
-		} else {
-			v.X = (l2.b - l1.b) / (l1.m - l2.m)
-			v.Y = l1.m*v.X + l1.b // doesn't matter which line we use in this case
-			if !inRange(v.X, s.From.X, s.To.X) {
-				continue
-			}
 		}
 
 		intersecting = append(intersecting, s)
@@ -119,6 +139,10 @@ func lineFromAngle(origin Vertex2, angle float64) *line {
 }
 
 func (l1 *line) intersect(l2 *line) (Vertex2, error) {
+	if *l1 == *l2 {
+		return Vertex2{}, errNoIntersections
+	}
+
 	var x, y float64
 	if math.IsInf(l1.m, 0) && math.IsInf(l2.m, 0) {
 		return Vertex2{}, errNoIntersections

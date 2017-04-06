@@ -24,7 +24,7 @@ func (v V2) Mul(d float64) V2 {
 func (v V2) Length() float64 {
 	return math.Sqrt((v.X * v.X) + (v.Y * v.Y))
 }
-func (v V2) Norm() V2 {
+func (v V2) Normalize() V2 {
 	length := v.Length()
 	return V2{X: v.X / length, Y: v.Y / length}
 }

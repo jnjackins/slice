@@ -12,7 +12,7 @@ import (
 var Sink draw.Image
 
 func BenchmarkDraw(b *testing.B) {
-	f, err := os.Open("stl/testdata/pikachu.stl")
+	f, err := os.Open("testdata/pikachu.stl")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -22,10 +22,8 @@ func BenchmarkDraw(b *testing.B) {
 		b.Fatal(err)
 	}
 	var cfg = Config{
-		LayerHeight:   1.0,
-		LineWidth:     1.0,
-		InfillSpacing: 2.0,
-		InfillAngle:   45.0,
+		LayerHeight: 1.0,
+		LineWidth:   1.0,
 	}
 	layers, err := Slice(stl, cfg)
 	if err != nil {
